@@ -8,6 +8,7 @@ class ArticleExtractor {
  
 	public function getArticleText($url) {
 		$text = null;
+		$method = "goose";
 
 		// Try to get the article using Goose first
 		$goose = new GooseClient(['image_fetch_best' => false]);
@@ -33,7 +34,6 @@ class ArticleExtractor {
 			$best_div = null;	
 
 			$html = $dom->outerHtml;
-			var_dump($html);		
 
 			// Get a list of qualifying nodes we want to evaluate as the top node for content
 			$contentList = $this->buildAllNodeList($dom->root);
@@ -101,6 +101,10 @@ class ArticleExtractor {
 			}
 			if ($best_div) {
 				$text = html_entity_decode($best_div->text(true));
+				$method = "custom";
+			}
+			else {
+				$method = null;
 			}
 		}
 		else {
@@ -111,7 +115,7 @@ class ArticleExtractor {
 		$clean_utf_title = iconv(mb_detect_encoding($article->getTitle(), mb_detect_order(), true), "UTF-8", $article->getTitle());
 		$clean_utf_text = iconv(mb_detect_encoding($text, mb_detect_order(), true), "UTF-8", $text);
 
-		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text];
+		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method];
 	}
 
 	function buildAllNodeList($element) {
