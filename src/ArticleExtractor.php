@@ -31,8 +31,10 @@ class ArticleExtractor {
 				unset($node);
 			}		
 
-			$best_div = null;	
-
+			$best_div = null;
+			$best_div_wc = 0;
+			$best_div_wc_ratio = -1; 
+			
 			$html = $dom->outerHtml;
 
 			// Get a list of qualifying nodes we want to evaluate as the top node for content
