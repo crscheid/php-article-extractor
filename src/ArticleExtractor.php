@@ -1,10 +1,17 @@
-<?php namespace Cscheide\ArticleExtractor;
+<?php 
+
+namespace Cscheide\ArticleExtractor;
 
 use Goose\Client as GooseClient;
 use PHPHtmlParser\Dom;
-
  
 class ArticleExtractor {
+
+	// Debug flag - set to true for convenience during development
+	private $debug = false;
+	
+	// Valid root elements we want to search for
+	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section','article'];
  
 	public function getArticleText($url) {
 		$text = null;
@@ -31,9 +38,10 @@ class ArticleExtractor {
 				unset($node);
 			}		
 
-			$best_div = null;
-			$best_div_wc = 0;
-			$best_div_wc_ratio = -1; 
+			// Records to store information on the best dom element found thusfar
+			$best_element = null;
+			$best_element_wc = 0;
+			$best_element_wc_ratio = -1; 
 			
 			$html = $dom->outerHtml;
 
@@ -43,66 +51,59 @@ class ArticleExtractor {
 			// Find a target best element
 			foreach($contentList as $node) {
 
-				// Calculate the wordcount, whitecount, and ratio for this element after stripping out all tags
+				// Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
 				$this_element_wc = str_word_count($node->text(true));
 				$this_element_whitecount = substr_count($node->text(true), ' ');
 				$this_element_wc_ratio = -1;
 			
-				if ($this_element_wc != 0) {
-					$this_element_wc_ratio = $this_element_whitecount / $this_element_wc;
-				}
-
-				// Calculate the word count contribution for all children div's
+				// If the wordcount is not zero, then calculation the wc ratio, otherwise set it to -1
+				$this_element_wc_ratio = ($this_element_wc == 0) ? -1 : $this_element_whitecount / $this_element_wc;
+				
+				// Calculate the word count contribution for all children elements
 				$children_wc = 0;
 				$children_num = 0;
 				foreach($node->getChildren() as $child) {
-					if ($child->tag->name() == 'body' || $child->tag->name() == 'form' || $child->tag->name() == 'main' || $child->tag->name() == 'div' || $child->tag->name() == 'ul' || $child->tag->name() == 'li' || $child->tag->name() == 'table' || $child->tag->name() == 'span' || $child->tag->name() == 'section' || $child->tag->name() == 'article') {
+					if (in_array($child->tag->name(),$this->valid_root_elements)) {
 						$children_num++;
 						$children_wc += str_word_count($child->text(true));
 					}
 				}
 
-				// This is the contribution for this particular div not including the children types above
-				$my_wc_contribution = $this_element_wc - $children_wc;
+				// This is the contribution for this particular element not including the children types above
+				$this_element_wc_contribution = $this_element_wc - $children_wc;
 
-//				log_debug("Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $my_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_div_wc . "\tBest Ratio:\t" . number_format($best_div_wc_ratio,2) . " " . $node->getAttribute('class') . "\n");
-
-				if (strpos($node->getAttribute('class'), 'brightcovevideosingle') !== false) {
-				
-					foreach($node->getChildren() as $child) {
-						$this_element_wc2 = str_word_count($child->text(true));
-//						log_debug("Child:\t". $child->tag->name() . " Class: " . $node->getAttribute('class') . "\tTotal WC:\t" . $this_element_wc2 . "\n");
-					}
-				}
+				// Debug information on this element for development purposes
+				$this->log_debug("Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $this_element_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_element_wc . "\tBest Ratio:\t" . number_format($best_element_wc_ratio,2) . " " . $node->getAttribute('class'));
 
 				// Now check to see if this element appears better than any previous one
 			
-				// We do this by first checking to see if this elements WC contribution is greater than the previous
-				if  ($my_wc_contribution > $best_div_wc) {
+				// We do this by first checking to see if this element's WC contribution is greater than the previous
+				if	($this_element_wc_contribution > $best_element_wc) {
 				
-					// There are three conditions required for this candidate not to be chosen
-					//      1. The previous best cannot be zero
-					//      2. The new best is less than 5%
-					//      3. The new element wc ratio is greater than the existing best element's ratio
-					if (    $best_div_wc != 0 && 
-							($my_wc_contribution / $best_div_wc) < 1.10 &&
-							$best_div_wc_ratio < $this_element_wc_ratio
-							) {
+					// If we so we then calculate the improvement ratio from the prior best and avoid division by 0
+					$wc_improvement_ratio = ($best_element_wc == 0) ? 100 : $this_element_wc_contribution / $best_element_wc;
 
-//						log_debug("\tNot new best element - less than 10% improvement and not better wc ratio\n");
-					
-					}
-					// If it the previous was zero, then go ahead and update the best
-					else {
-						$best_div_wc = $my_wc_contribution;
-						$best_div_wc_ratio = $this_element_wc_ratio;
-						$best_div = $node;
-//						log_debug("\t *** New best element ***\n");
-					}
+					// There are three conditions in which this candidate should be chosen
+					//		1. The previous best is zero
+					//		2. The new best is more than 10% greater WC contribution than the prior best
+					//		3. The new element wc ratio is less than the existing best element's ratio
+
+					if ( $best_element_wc == 0 || $wc_improvement_ratio	 >= 1.10 || $this_element_wc_ratio <= $best_element_wc_ratio) {
+						$best_element_wc = $this_element_wc_contribution;
+						$best_element_wc_ratio = $this_element_wc_ratio;
+						$best_element = $node;
+						$this->log_debug("\t *** New best element ***");
+					}					
 				}
 			}
-			if ($best_div) {
-				$text = html_entity_decode($best_div->text(true));
+			
+			// Now we need to do some sort of peer analysis
+			
+			//$best_element = $this->peerAnalysis($best_element);
+			
+			
+			if ($best_element) {
+				$text = html_entity_decode($best_element->text(true));
 				$method = "custom";
 			}
 			else {
@@ -117,10 +118,63 @@ class ArticleExtractor {
 		$clean_utf_title = iconv(mb_detect_encoding($article->getTitle(), mb_detect_order(), true), "UTF-8", $article->getTitle());
 		$clean_utf_text = iconv(mb_detect_encoding($text, mb_detect_order(), true), "UTF-8", $text);
 
+		$this->log_debug("TITLE: " . $clean_utf_title);
+		$this->log_debug("METHOD: " . $method);
+		$this->log_debug("CONTENT: " . $clean_utf_text);
+
 		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method];
 	}
 
-	function buildAllNodeList($element) {
+	private function peerAnalysis($element) {
+
+		$this->log_debug("PEER ANALYSIS ON " . $element->tag->name() . " (" . $element->getAttribute('class') . ")");
+
+		$range = 0.50;
+	
+		$element_wc = str_word_count($element->text(true));
+		$element_whitecount = substr_count($element->text(true), ' ');
+		$element_wc_ratio = $element_whitecount / $element_wc;
+	
+		if ($element->getParent() != null) {
+
+			$parent = $element->getParent();
+			$this->log_debug("  Parent: " . $parent->tag->name() . " (" . $parent->getAttribute('class') . ")");
+
+			$peers_with_close_wc = 0;
+
+			foreach($parent->getChildren() as $child)
+			{
+				$child_wc = str_word_count($child->text(true));
+				$child_whitecount = substr_count($child->text(true), ' ');
+
+				if ($child_wc != 0) {
+					$child_wc_ratio = $child_whitecount / $child_wc;
+
+					$this->log_debug("    Child: " . $child->tag->name() . " (" . $child->getAttribute('class') . ") WC: " . $child_wc . " Ratio: " . number_format($child_wc_ratio,2) );
+					
+					if ($child_wc > ($element_wc * $range) && $child_wc < ($element_wc * (1 + $range))) {
+						$this->log_debug("** good peer found **");
+						$peers_with_close_wc++;
+					}
+				}
+			}
+			
+			if ($peers_with_close_wc > 2) {
+				$this->log_debug("Returning parent");
+				return $parent;
+			}
+			else {
+				$this->log_debug("Not enough good peers, returning original element");
+				return $element;
+			}
+		}
+		else {
+			$this->log_debug("Element has no parent - returning original element");
+			return $element;
+		}
+	}
+
+	private function buildAllNodeList($element) {
 
 		$return_array = array();
 
@@ -135,7 +189,7 @@ class ArticleExtractor {
 					$return_array = array_merge($return_array, array_values($this->buildAllNodeList($child)));
 	
 					// Include the following tags in the counts for children and number of words
-					if ($child->tag->name() == 'body' || $child->tag->name() == 'form' || $child->tag->name() == 'main' || $child->tag->name() == 'div' || $child->tag->name() == 'ul' || $child->tag->name() == 'li' || $child->tag->name() == 'table' || $child->tag->name() == 'span' || $child->tag->name() == 'section' || $child->tag->name() == 'article') {
+					if (in_array($child->tag->name(),$this->valid_root_elements)) {
 						array_push($return_array, $child);
 					}
 				}
@@ -143,8 +197,13 @@ class ArticleExtractor {
 		}
 		return $return_array;
 	}
+
+
+	private function log_debug($message) {
+		if ($this->debug) {
+			echo $message . "\n";
+		}
+	}
 }
-
-
 
 ?>
