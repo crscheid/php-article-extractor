@@ -11,7 +11,7 @@ class ArticleExtractor {
 	private $debug = false;
 	
 	// Valid root elements we want to search for
-	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section','article'];
+	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
  
 	public function getArticleText($url) {
 		$text = null;
@@ -23,6 +23,8 @@ class ArticleExtractor {
 	
 		// If Goose failed
 		if ($article->getCleanedArticleText() == null) {
+		
+			$this->log_debug("Trying custom method");
 	
 			// Get the HTML from goose
 			$html_string = $article->getRawHtml();
@@ -30,10 +32,11 @@ class ArticleExtractor {
 			// Ok then try it a different way
 			$dom = new Dom;
 			$dom->load($html_string, ['whitespaceTextNode' => false]);
-		
+
 			// First, just completely remove the items we don't even care about		
-			$scriptNodes = $dom->find('script, style, header, footer, input, form, button, aside, meta, link');
-			foreach($scriptNodes as $node) {
+			$nodesToRemove = $dom->find('script, style, header, footer, input, form, button, aside, meta, link');
+			
+			foreach($nodesToRemove as $node) {
 				$node->delete();
 				unset($node);
 			}		
@@ -43,13 +46,14 @@ class ArticleExtractor {
 			$best_element_wc = 0;
 			$best_element_wc_ratio = -1; 
 			
-			$html = $dom->outerHtml;
+//			$html = $dom->outerHtml;
 
 			// Get a list of qualifying nodes we want to evaluate as the top node for content
-			$contentList = $this->buildAllNodeList($dom->root);
+			$candidateNodes = $this->buildAllNodeList($dom->root);
+			$this->log_debug("Candidate node count: " . count($candidateNodes));
 
 			// Find a target best element
-			foreach($contentList as $node) {
+			foreach($candidateNodes as $node) {
 
 				// Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
 				$this_element_wc = str_word_count($node->text(true));
