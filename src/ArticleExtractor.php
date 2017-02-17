@@ -3,6 +3,7 @@
 namespace Cscheide\ArticleExtractor;
 
 use Goose\Client as GooseClient;
+use GuzzleHttp\Client as GuzzleClient;
 use PHPHtmlParser\Dom;
  
 class ArticleExtractor {
@@ -13,9 +14,37 @@ class ArticleExtractor {
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
  
+ 	private function checkForRedirects($url, $count = 0) {
+		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
+		
+		if ($count > 5) {
+			$this->log_debug("Too many redirects");
+			return $url;
+		}
+		
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_HEADER, true);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$a = curl_exec($ch);
+
+		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
+			$new_url = trim($r[1]);
+			$this->log_debug("Redirect found to: " . $new_url);
+			return $this->checkForRedirects($new_url, $count+1);
+		}
+		else {
+	 		return $url;
+	 	}
+ 	}
+ 
 	public function getArticleText($url) {
 		$text = null;
 		$method = "goose";
+
+		// Check for redirects first
+		$url = $this->checkForRedirects($url);
 
 		// Try to get the article using Goose first
 		$goose = new GooseClient(['image_fetch_best' => false]);

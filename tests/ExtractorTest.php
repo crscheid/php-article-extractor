@@ -9,6 +9,7 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		 'http://www.nhregister.com/opinion/20170116/poor-elijahs-almanack-some-choice-observations',
 		 'http://www.mckinsey.com/industries/financial-services/our-insights/engaging-customers-the-evolution-of-asia-pacific-digital-banking?cid=other-eml-alt-mip-mck-oth-1701',
 		 'https://www.fastcompany.com/3067246/innovation-agents/the-unexpected-design-challenge-behind-slacks-new-threaded-conversations',
+		 'https://t.co/kwb19AGfxl',
 	];
 
  
