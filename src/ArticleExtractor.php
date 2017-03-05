@@ -57,13 +57,13 @@ class ArticleExtractor {
 	
 			// Get the HTML from goose
 			$html_string = $article->getRawHtml();
-	
+			
 			// Ok then try it a different way
 			$dom = new Dom;
 			$dom->load($html_string, ['whitespaceTextNode' => false]);
 
 			// First, just completely remove the items we don't even care about		
-			$nodesToRemove = $dom->find('script, style, header, footer, input, form, button, aside, meta, link');
+			$nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
 			
 			foreach($nodesToRemove as $node) {
 				$node->delete();
@@ -132,7 +132,7 @@ class ArticleExtractor {
 			
 			// Now we need to do some sort of peer analysis
 			
-			//$best_element = $this->peerAnalysis($best_element);
+			$best_element = $this->peerAnalysis($best_element);
 			
 			
 			if ($best_element) {
@@ -157,6 +157,7 @@ class ArticleExtractor {
 
 		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method];
 	}
+
 
 	private function peerAnalysis($element) {
 
@@ -207,11 +208,15 @@ class ArticleExtractor {
 		}
 	}
 
-	private function buildAllNodeList($element) {
+	private function buildAllNodeList($element, $depth = 0) {
 
 		$return_array = array();
 
+		// Debug what we are checking
+
 		if($element->getTag()->name() != "text") {
+
+			$this->log_debug("buildAllNodeList: " . str_repeat(' ', $depth*2) . $element->getTag()->name() . " ( " . $element->getAttribute('class') . " )");
 
 			// Look at each child div element
 			if ($element->hasChildren()) {
@@ -219,7 +224,7 @@ class ArticleExtractor {
 				foreach($element->getChildren() as $child)
 				{
 					// Push the children's children
-					$return_array = array_merge($return_array, array_values($this->buildAllNodeList($child)));
+					$return_array = array_merge($return_array, array_values($this->buildAllNodeList($child, $depth+1)));
 	
 					// Include the following tags in the counts for children and number of words
 					if (in_array($child->tag->name(),$this->valid_root_elements)) {
@@ -227,6 +232,9 @@ class ArticleExtractor {
 					}
 				}
 			}
+		}
+		else {
+			$this->log_debug("buildAllNodeList: " . str_repeat(' ', $depth*2) . $element->getTag()->name());
 		}
 		return $return_array;
 	}
