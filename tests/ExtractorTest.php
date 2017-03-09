@@ -12,6 +12,7 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'https://t.co/kwb19AGfxl',
 		'http://www.mckinsey.com/business-functions/digital-mckinsey/our-insights/the-next-generation-operating-model-for-the-digital-world?cid=reinventing-eml-alt-mip-mck-oth-1703',
 		'http://www.slate.com/articles/news_and_politics/cover_story/2017/02/the_first_month_of_the_trump_presidency_has_been_more_cruel_and_destructive.html',
+		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',
 	];
 
 	private $known_problems = [
