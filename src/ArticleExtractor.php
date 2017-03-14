@@ -5,6 +5,8 @@ namespace Cscheide\ArticleExtractor;
 use Goose\Client as GooseClient;
 use GuzzleHttp\Client as GuzzleClient;
 use PHPHtmlParser\Dom;
+use PHPHtmlParser\Dom\HtmlNode;
+use PHPHtmlParser\Dom\TextNode;
  
 class ArticleExtractor {
 
@@ -13,6 +15,9 @@ class ArticleExtractor {
 	
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
+ 
+ 	// Elements we want to place a space in front of when converting to text
+ 	private $space_elements = ['p', 'li'];
  
  	private function checkForRedirects($url, $count = 0) {
 		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
@@ -130,13 +135,27 @@ class ArticleExtractor {
 				}
 			}
 			
-			// Now we need to do some sort of peer analysis
-			
-			$best_element = $this->peerAnalysis($best_element);
-			
-			
+			// If we have a candidate element
 			if ($best_element) {
-				$text = html_entity_decode($best_element->text(true));
+
+				// Now we need to do some sort of peer analysis
+				$best_element = $this->peerAnalysis($best_element);
+
+/*				
+				// Add space before HTML elements that if removed create concatenation issues (e.g. <p>, <li>)
+				$nodesToEditText = $best_element->find('p, li');
+			
+				foreach($nodesToEditText as $node) {
+					$node->setText(" " . $node->text);
+				}		
+				
+*/
+				// 
+				// Decode the text
+//				$text = html_entity_decode($best_element->text(true));
+				$text = html_entity_decode($this->getTextForNode($best_element));
+				
+				// Set the method so the caller knows which one was used
 				$method = "custom";
 			}
 			else {
@@ -244,6 +263,41 @@ class ArticleExtractor {
 		if ($this->debug) {
 			echo $message . "\n";
 		}
+	}
+	
+	/*
+	 * This function gets the text representation of a node and works recursively to do so.
+	 * It also trys to format an extra space in HTML elements that create concatenation
+	 * issues when they are slapped together
+	 */ 
+	private function getTextForNode($element) {
+
+        $text = '';
+
+		$this->log_debug("getTextForNode: "  . $element->getTag()->name());
+        
+        // Look at each child
+        foreach ($element->getChildren() as $child) {
+
+			// If its a text node, just give it the nodes text
+            if ($child instanceof TextNode) {
+                $text .= $child->text();
+            }
+            // Otherwise, if it is an HtmlNode
+            elseif ($child instanceof HtmlNode) {
+            	
+            	// If this is one of the HTML tags we want to add a space to
+            	if (in_array($child->getTag()->name(),$this->space_elements)) {
+            		$text .= " " . $this->getTextForNode($child);
+            	}
+            	else {
+            		$text .= $this->getTextForNode($child);
+            	}
+            }
+        }
+
+		// Return our text string
+        return $text;
 	}
 }
 
