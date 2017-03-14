@@ -13,8 +13,6 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'http://www.mckinsey.com/business-functions/digital-mckinsey/our-insights/the-next-generation-operating-model-for-the-digital-world?cid=reinventing-eml-alt-mip-mck-oth-1703',
 		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',
 		'https://www.bloomberg.com/news/articles/2017-03-13/bitcoin-miners-signal-revolt-in-push-to-fix-sluggish-blockchain'
-		'http://futurememes.blogspot.jp/2017/01/cognitive-easing-human-identity-crisis.html?m=1', // Issue #3, mb_convert issue
-
 	];
 
 	private $known_problems = [
@@ -23,6 +21,9 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 
 		// React problem #5 (https://github.com/crscheid/php-article-extractor/issues/5)
 		'https://www.bitcoinunlimited.info/faq',
+
+		// Related to (https://github.com/scotteh/php-dom-wrapper/issues/4)
+		'http://futurememes.blogspot.jp/2017/01/cognitive-easing-human-identity-crisis.html?m=1',
 	];
  
 	public function testProblemSites()
