@@ -11,42 +11,35 @@ use PHPHtmlParser\Dom\TextNode;
 class ArticleExtractor {
 
 	// Debug flag - set to true for convenience during development
-	private $debug = false;
+	private $debug = true;
 	
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
  
  	// Elements we want to place a space in front of when converting to text
  	private $space_elements = ['p', 'li'];
- 
- 	private function checkForRedirects($url, $count = 0) {
-		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
-		
-		if ($count > 5) {
-			$this->log_debug("Too many redirects");
-			return $url;
-		}
-		
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HEADER, true);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-		$a = curl_exec($ch);
 
-		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
-			$new_url = trim($r[1]);
-			$this->log_debug("Redirect found to: " . $new_url);
-			return $this->checkForRedirects($new_url, $count+1);
-		}
-		else {
-	 		return $url;
-	 	}
- 	}
- 
+	// TODO: Put in supported languages - test out the Nikkei article that doesn't work - try to capture Japanese with the test parsing
+
+ 	/**
+ 	 * The only public function for this class. getArticleText returns the best guess of the
+ 	 * human readable part of a URL, as well as some meta data associated with the parsing.
+ 	 *
+ 	 * Returns an array with the following information:
+ 	 *
+ 	 * [
+ 	 *    title => (the title of the article)
+ 	 *    content => (the human readable piece of the article)
+ 	 *    method => (the internal processing method used to parse the article)
+ 	 *    language => (the ISO 639-1 code detected for the language)
+ 	 *    detect_method => (the way the language was detected)
+ 	 * ]
+ 	 */
 	public function getArticleText($url) {
 		$text = null;
 		$method = "goose";
+		$language = "unknown";
+		$detect_method = "n/a";
 
 		// Check for redirects first
 		$url = $this->checkForRedirects($url);
@@ -62,6 +55,10 @@ class ArticleExtractor {
 	
 			// Get the HTML from goose
 			$html_string = $article->getRawHtml();
+			
+			$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
+			$this->log_debug($html_string);
+			$this->log_debug("-------------------------------------------------------------------------------------------------");
 			
 			// Ok then try it a different way
 			$dom = new Dom;
@@ -165,18 +162,76 @@ class ArticleExtractor {
 		else {
 			$text = $article->getCleanedArticleText();
 		}
+		
+		// Implement check in HTML to determine if the language is specified somewhere
+		if ($lang_detect = $this->checkHTMLForLanguageHint($article->getRawHtml())) {
+			$detect_method = "html";
+			$language = $lang_detect;
+			$this->log_debug("Language was detected as " . $language . " from HTML");
+		}
 
 		// Convert items to UTF-8
 		$clean_utf_title = iconv(mb_detect_encoding($article->getTitle(), mb_detect_order(), true), "UTF-8", $article->getTitle());
 		$clean_utf_text = iconv(mb_detect_encoding($text, mb_detect_order(), true), "UTF-8", $text);
 
+		// If we've got some text
+		if ($clean_utf_text != null) {
+		
+			// If the language is still unknown, try to check Yandex
+			if ($language == "unknown") {
+				$this->log_debug("Checking language via Yandex");
+
+				$detect_method = "yandex";
+			
+				// If we have an env variable called YANDEX_API_KEY, let's make the call to the
+				// function with a substring of the text
+				if ($api_key = getenv("YANDEX_API_KEY")) {
+					$language = $this->identifyLanguage(substr($clean_utf_text,0,100), $api_key);
+					$this->log_debug("Language determined to be: " . $language);
+				}
+			}
+		}
+		else {
+			$this->log_debug("Skipping language check since the content is null");
+		}
+		
 		$this->log_debug("TITLE: " . $clean_utf_title);
 		$this->log_debug("METHOD: " . $method);
+		$this->log_debug("LANGUAGE: " . $language);
+		$this->log_debug("DETECT_METHOD: " . $detect_method);
 		$this->log_debug("CONTENT: " . $clean_utf_text);
 
-		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method];
+		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method,'language'=>$language,'detect_method'=>$detect_method];
 	}
 
+	/**
+	 * Checks for redirects given a URL. Will return the ultimate final URL if found within
+	 * 5 redirects. Otherwise, it will return the last url it found and log too many redirects
+	 */ 
+ 	private function checkForRedirects($url, $count = 0) {
+		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
+		
+		if ($count > 5) {
+			$this->log_debug("Too many redirects");
+			return $url;
+		}
+		
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_HEADER, true);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$a = curl_exec($ch);
+
+		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
+			$new_url = trim($r[1]);
+			$this->log_debug("Redirect found to: " . $new_url);
+			return $this->checkForRedirects($new_url, $count+1);
+		}
+		else {
+	 		return $url;
+	 	}
+ 	}
 
 	private function peerAnalysis($element) {
 
@@ -299,6 +354,93 @@ class ArticleExtractor {
 		// Return our text string
         return $text;
 	}
+	
+
+	/**
+	 * Identifies the language received in the UTF-8 text using the Yandex API
+	 */	
+	private function identifyLanguage($text, $yandex_api_key)
+	{
+		if ($text == null || $yandex_api_key == null) {
+			return null;
+		}
+	
+		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/detect?key=" . $yandex_api_key;
+		$url = $baseUrl . "&text=" . urlencode($text);
+
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+		$output = curl_exec($ch);
+		if ($output)
+		{
+			$outputJson = json_decode($output);
+			
+			if ($outputJson->code == 200)
+			{
+				if (strlen($outputJson->lang) > 0)
+				{
+					return $outputJson->lang;
+				}
+			}
+		}
+
+		return "unknown";
+	}
+	
+	/**
+	 * Checks the passed in HTML for any hints within the HTML for language. Should
+	 * return the ISO 639-1 language code if found or false if no language could be determined
+	 * from the dom model
+	 */
+	private function checkHTMLForLanguageHint($html_string) {
+
+		// Ok then try it a different way
+		$dom = new Dom;
+		$dom->load($html_string, ['whitespaceTextNode' => false]);
+		
+		$htmltag = $dom->find('html');
+		$lang = $htmltag->getAttribute('lang');
+		
+		if ($lang != null) {
+			$this->log_debug("checkHTMLForLanguageHint: Found language: " . $lang . ", returning " . substr($lang,0,2));
+			return substr($lang,0,2);
+		}
+		else {
+			$this->log_debug("checkHTMLForLanguageHint: Found no language");
+			return false;
+		}
+	}
+
+	/**
+	function translateText($text, $targetLang)
+	{
+		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/translate?key=YOUR_yandex_api_key";
+		$url = $baseUrl . "&text=" . urlencode($text) . "&lang=" . urlencode($targetLang);
+
+		$ch = curl_init($url);
+
+		curl_setopt($ch, CURLOPT_CAINFO, YOUR_CERT_PEM_FILE_LOCATION);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, TRUE);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+		$output = curl_exec($ch);
+		if ($output)
+		{
+			$outputJson = json_decode($output);
+			if ($outputJson->code == 200)
+			{
+				if (count($outputJson->text) > 0 && strlen($outputJson->text[0]) > 0)
+				{
+					return $outputJson->text[0];
+				}
+			}
+		}
+
+		return $text;
+	}
+	*/	
 }
 
 ?>
