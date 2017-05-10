@@ -16,37 +16,28 @@ class ArticleExtractor {
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
  
- 	// Elements we want to place a space in front of when converting to text
- 	private $space_elements = ['p', 'li'];
- 
- 	private function checkForRedirects($url, $count = 0) {
-		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
-		
-		if ($count > 5) {
-			$this->log_debug("Too many redirects");
-			return $url;
-		}
-		
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $url);
-		curl_setopt($ch, CURLOPT_HEADER, true);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-		$a = curl_exec($ch);
+	// Elements we want to place a space in front of when converting to text
+	private $space_elements = ['p', 'li'];
 
-		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
-			$new_url = trim($r[1]);
-			$this->log_debug("Redirect found to: " . $new_url);
-			return $this->checkForRedirects($new_url, $count+1);
-		}
-		else {
-	 		return $url;
-	 	}
- 	}
- 
+	/**
+	 * The only public function for this class. getArticleText returns the best guess of the
+	 * human readable part of a URL, as well as some meta data associated with the parsing.
+	 *
+	 * Returns an array with the following information:
+	 *
+	 * [
+	 *	  title => (the title of the article)
+	 *	  text => (the human readable piece of the article)
+	 *	  parse_method => (the internal processing method used to parse the article)
+	 *	  language => (the ISO 639-1 code detected for the language)
+	 *	  language_method => (the way the language was detected)
+	 * ]
+	 */
 	public function getArticleText($url) {
 		$text = null;
 		$method = "goose";
+		$language = null;
+		$detect_method = null;
 
 		// Check for redirects first
 		$url = $this->checkForRedirects($url);
@@ -62,6 +53,10 @@ class ArticleExtractor {
 	
 			// Get the HTML from goose
 			$html_string = $article->getRawHtml();
+			
+			$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
+			$this->log_debug($html_string);
+			$this->log_debug("-------------------------------------------------------------------------------------------------");
 			
 			// Ok then try it a different way
 			$dom = new Dom;
@@ -163,20 +158,107 @@ class ArticleExtractor {
 			}
 		}
 		else {
+			$this->log_debug("Utilized goose method");
 			$text = $article->getCleanedArticleText();
 		}
-
+		
+		// Implement check in HTML to determine if the language is specified somewhere
+		if ($lang_detect = $this->checkHTMLForLanguageHint($article->getRawHtml())) {
+			$detect_method = "html";
+			$language = $lang_detect;
+			$this->log_debug("Language was detected as " . $language . " from HTML");
+		}
+		
+		$this->log_debug("--------- PRE UTF 8 CLEANING -------------------------------------");
+		$this->log_debug("title: " . $article->getTitle());
+		$this->log_debug("text: " . $text);
+		$this->log_debug("------------------------------------------------------------------");
+		
 		// Convert items to UTF-8
-		$clean_utf_title = iconv(mb_detect_encoding($article->getTitle(), mb_detect_order(), true), "UTF-8", $article->getTitle());
-		$clean_utf_text = iconv(mb_detect_encoding($text, mb_detect_order(), true), "UTF-8", $text);
+		$clean_utf_title = $this->shiftEncodingToUTF8($article->getTitle());
+		$clean_utf_text = $this->shiftEncodingToUTF8($text);
 
-		$this->log_debug("TITLE: " . $clean_utf_title);
-		$this->log_debug("METHOD: " . $method);
-		$this->log_debug("CONTENT: " . $clean_utf_text);
+/*
+		// Check for null title - this happened with some Japanese site where the title was not parsed well through the iconv(mb_detect ... process
+		if ($clean_utf_title == null) {
+		
+			// TODO: Run this through the DOM model and look for <title> tag or <meta property="og:title" content="..." />
+			$clean_utf_title = $article->getTitle();
+		}
+*/
 
-		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'method'=>$method];
+		// If we've got some text and we still don't have a language
+		if ($clean_utf_text != null && $language == null) {
+		
+			$this->log_debug("Attempting to check language via Yandex");
+
+			// If we have an env variable called YANDEX_API_KEY, let's make the call to the
+			// function with a substring of the text
+			if ($api_key = getenv("YANDEX_API_KEY")) {
+				$detect_method = "yandex";
+				$language = $this->identifyLanguage(mb_substr($clean_utf_text,0,100), $api_key);
+				$this->log_debug("Language determined to be: " . $language);
+			}
+			else {
+				$this->log_debug("YANDEX_API_KEY environment variable not set - cannot proceed");
+			}
+		}
+		else {
+			$this->log_debug("Skipping Yandex language check");
+		}
+		
+		$this->log_debug("text: " . $clean_utf_text);
+		$this->log_debug("title: " . $clean_utf_title);
+		$this->log_debug("language: " . $language);
+		$this->log_debug("parse_method: " . $method);
+		$this->log_debug("language_method: " . $detect_method);
+
+		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'parse_method'=>$method,'language'=>$language,'language_method'=>$detect_method];
 	}
 
+	/**
+	 * Checks for redirects given a URL. Will return the ultimate final URL if found within
+	 * 5 redirects. Otherwise, it will return the last url it found and log too many redirects
+	 */ 
+	private function checkForRedirects($url, $count = 0) {
+		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
+		
+		if ($count > 5) {
+			$this->log_debug("Too many redirects");
+			return $url;
+		}
+		
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_HEADER, true);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$a = curl_exec($ch);
+
+		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
+			$new_url = trim($r[1]);
+			$this->log_debug("Redirect found to: " . $new_url);
+			return $this->checkForRedirects($new_url, $count+1);
+		}
+		else {
+			return $url;
+		}
+	}
+	
+	/**
+	 * Shifts encoding to UTF if needed
+	 */
+	private function shiftEncodingToUTF8($text) {
+	
+		if ($encoding = mb_detect_encoding($text, mb_detect_order(), true)) {
+			$this->log_debug("shiftEncodingToUTF8 detected encoding of " . $encoding . " -> shifting to UTF-8");
+			return iconv($encoding, "UTF-8", $text);
+		}
+		else {
+			$this->log_debug("shiftEncodingToUTF8 detected NO encoding -> leaving as is");
+			return $text;
+		}
+	}
 
 	private function peerAnalysis($element) {
 
@@ -191,7 +273,7 @@ class ArticleExtractor {
 		if ($element->getParent() != null) {
 
 			$parent = $element->getParent();
-			$this->log_debug("  Parent: " . $parent->tag->name() . " (" . $parent->getAttribute('class') . ")");
+			$this->log_debug("	Parent: " . $parent->tag->name() . " (" . $parent->getAttribute('class') . ")");
 
 			$peers_with_close_wc = 0;
 
@@ -203,7 +285,7 @@ class ArticleExtractor {
 				if ($child_wc != 0) {
 					$child_wc_ratio = $child_whitecount / $child_wc;
 
-					$this->log_debug("    Child: " . $child->tag->name() . " (" . $child->getAttribute('class') . ") WC: " . $child_wc . " Ratio: " . number_format($child_wc_ratio,2) );
+					$this->log_debug("	  Child: " . $child->tag->name() . " (" . $child->getAttribute('class') . ") WC: " . $child_wc . " Ratio: " . number_format($child_wc_ratio,2) );
 					
 					if ($child_wc > ($element_wc * $range) && $child_wc < ($element_wc * (1 + $range))) {
 						$this->log_debug("** good peer found **");
@@ -272,33 +354,141 @@ class ArticleExtractor {
 	 */ 
 	private function getTextForNode($element) {
 
-        $text = '';
+		$text = '';
 
-		$this->log_debug("getTextForNode: "  . $element->getTag()->name());
-        
-        // Look at each child
-        foreach ($element->getChildren() as $child) {
+		$this->log_debug("getTextForNode: "	 . $element->getTag()->name());
+		
+		// Look at each child
+		foreach ($element->getChildren() as $child) {
 
 			// If its a text node, just give it the nodes text
-            if ($child instanceof TextNode) {
-                $text .= $child->text();
-            }
-            // Otherwise, if it is an HtmlNode
-            elseif ($child instanceof HtmlNode) {
-            	
-            	// If this is one of the HTML tags we want to add a space to
-            	if (in_array($child->getTag()->name(),$this->space_elements)) {
-            		$text .= " " . $this->getTextForNode($child);
-            	}
-            	else {
-            		$text .= $this->getTextForNode($child);
-            	}
-            }
-        }
+			if ($child instanceof TextNode) {
+				$text .= $child->text();
+			}
+			// Otherwise, if it is an HtmlNode
+			elseif ($child instanceof HtmlNode) {
+				
+				// If this is one of the HTML tags we want to add a space to
+				if (in_array($child->getTag()->name(),$this->space_elements)) {
+					$text .= " " . $this->getTextForNode($child);
+				}
+				else {
+					$text .= $this->getTextForNode($child);
+				}
+			}
+		}
 
 		// Return our text string
-        return $text;
+		return $text;
 	}
+	
+
+	/**
+	 * Identifies the language received in the UTF-8 text using the Yandex API
+	 */ 
+	private function identifyLanguage($text, $yandex_api_key)
+	{
+		$this->log_debug("identifyLanguage: " . $text);
+	
+		if ($text == null || $yandex_api_key == null) {
+			return null;
+		}
+	
+		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/detect?key=" . $yandex_api_key;
+		$url = $baseUrl . "&text=" . urlencode($text);
+
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+		$output = curl_exec($ch);
+		if ($output)
+		{
+			$outputJson = json_decode($output);
+			
+			if ($outputJson->code == 200)
+			{
+				if (strlen($outputJson->lang) > 0)
+				{
+					return $outputJson->lang;
+				}
+			}
+		}
+
+		return "unknown";
+	}
+	
+	/**
+	 * Checks the passed in HTML for any hints within the HTML for language. Should
+	 * return the ISO 639-1 language code if found or false if no language could be determined
+	 * from the dom model.
+	 *
+	 */
+	private function checkHTMLForLanguageHint($html_string) {
+
+		// Ok then try it a different way
+		$dom = new Dom;
+		$dom->load($html_string, ['whitespaceTextNode' => false]);
+		
+		$htmltag = $dom->find('html');
+		$lang = $htmltag->getAttribute('lang');
+		
+		// Check for lang in HTML tag
+		if ($lang != null) {
+			$this->log_debug("checkHTMLForLanguageHint: Found language: " . $lang . ", returning " . substr($lang,0,2));
+			return substr($lang,0,2);
+		}
+		// Otherwise...
+		else {
+		
+			// Check to see if we have a <meta name="content-language" content="ja" /> type tag
+			$metatags = $dom->find("meta");
+			
+			foreach ($metatags as $tag) {
+				$this->log_debug("Checking tag: " . $tag->getAttribute('name'));
+				if ($tag->getAttribute('name') == 'content-language') {
+					return $tag->getAttribute('content');
+				} 
+			}
+			
+			if ($metatag) { 
+				$this->log_debug("checkHTMLForLanguageHint: Found content-language meta tag " . $metatag->innerHtml);
+				return $metatag->getAttribute('content');
+			}
+			
+			$this->log_debug("checkHTMLForLanguageHint: Found no language");
+			return false;
+		}
+	}
+
+	/**
+	function translateText($text, $targetLang)
+	{
+		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/translate?key=YOUR_yandex_api_key";
+		$url = $baseUrl . "&text=" . urlencode($text) . "&lang=" . urlencode($targetLang);
+
+		$ch = curl_init($url);
+
+		curl_setopt($ch, CURLOPT_CAINFO, YOUR_CERT_PEM_FILE_LOCATION);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, TRUE);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+		$output = curl_exec($ch);
+		if ($output)
+		{
+			$outputJson = json_decode($output);
+			if ($outputJson->code == 200)
+			{
+				if (count($outputJson->text) > 0 && strlen($outputJson->text[0]) > 0)
+				{
+					return $outputJson->text[0];
+				}
+			}
+		}
+
+		return $text;
+	}
+	*/	
 }
 
 ?>
