@@ -29,7 +29,10 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'http://futurememes.blogspot.jp/2017/01/cognitive-easing-human-identity-crisis.html?m=1',
 		
 		// HTML doesn't actually contain the story without first loading some client-side javascript, similar to #5 above
-		'http://mw.nikkei.com/sp/#!/article/DGXLASJC20H12_Q7A420C1000000'
+		'http://mw.nikkei.com/sp/#!/article/DGXLASJC20H12_Q7A420C1000000',
+		
+		// Unknown reason why
+		'http://gizmodo.com/how-to-survive-the-next-catastrophic-pandemic-1793487027?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
 	];
  
 	public function testProblemSites()
