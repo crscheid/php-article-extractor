@@ -19,8 +19,6 @@ class ArticleExtractor {
 	// Elements we want to place a space in front of when converting to text
 	private $space_elements = ['p', 'li'];
 
-	// TODO: Put in supported languages - test out the Nikkei article that doesn't work - try to capture Japanese with the text parsing
-
 	/**
 	 * The only public function for this class. getArticleText returns the best guess of the
 	 * human readable part of a URL, as well as some meta data associated with the parsing.
@@ -29,7 +27,7 @@ class ArticleExtractor {
 	 *
 	 * [
 	 *	  title => (the title of the article)
-	 *	  content => (the human readable piece of the article)
+	 *	  text => (the human readable piece of the article)
 	 *	  parse_method => (the internal processing method used to parse the article)
 	 *	  language => (the ISO 639-1 code detected for the language)
 	 *	  language_method => (the way the language was detected)
@@ -37,7 +35,7 @@ class ArticleExtractor {
 	 */
 	public function getArticleText($url) {
 		$text = null;
-		$method = null;
+		$method = "goose";
 		$language = null;
 		$detect_method = null;
 
@@ -160,6 +158,7 @@ class ArticleExtractor {
 			}
 		}
 		else {
+			$this->log_debug("Utilized goose method");
 			$text = $article->getCleanedArticleText();
 		}
 		
@@ -169,17 +168,24 @@ class ArticleExtractor {
 			$language = $lang_detect;
 			$this->log_debug("Language was detected as " . $language . " from HTML");
 		}
-
+		
+		$this->log_debug("--------- PRE UTF 8 CLEANING -------------------------------------");
+		$this->log_debug("title: " . $article->getTitle());
+		$this->log_debug("text: " . $text);
+		$this->log_debug("------------------------------------------------------------------");
+		
 		// Convert items to UTF-8
-		$clean_utf_title = iconv(mb_detect_encoding($article->getTitle(), mb_detect_order(), true), "UTF-8", $article->getTitle());
-		$clean_utf_text = iconv(mb_detect_encoding($text, mb_detect_order(), true), "UTF-8", $text);
+		$clean_utf_title = $this->shiftEncodingToUTF8($article->getTitle());
+		$clean_utf_text = $this->shiftEncodingToUTF8($text);
 
+/*
 		// Check for null title - this happened with some Japanese site where the title was not parsed well through the iconv(mb_detect ... process
 		if ($clean_utf_title == null) {
 		
 			// TODO: Run this through the DOM model and look for <title> tag or <meta property="og:title" content="..." />
 			$clean_utf_title = $article->getTitle();
 		}
+*/
 
 		// If we've got some text and we still don't have a language
 		if ($clean_utf_text != null && $language == null) {
@@ -198,7 +204,7 @@ class ArticleExtractor {
 			}
 		}
 		else {
-			$this->log_debug("Skipping Yandex language check since the content is null");
+			$this->log_debug("Skipping Yandex language check");
 		}
 		
 		$this->log_debug("text: " . $clean_utf_text);
@@ -236,6 +242,21 @@ class ArticleExtractor {
 		}
 		else {
 			return $url;
+		}
+	}
+	
+	/**
+	 * Shifts encoding to UTF if needed
+	 */
+	private function shiftEncodingToUTF8($text) {
+	
+		if ($encoding = mb_detect_encoding($text, mb_detect_order(), true)) {
+			$this->log_debug("shiftEncodingToUTF8 detected encoding of " . $encoding . " -> shifting to UTF-8");
+			return iconv($encoding, "UTF-8", $text);
+		}
+		else {
+			$this->log_debug("shiftEncodingToUTF8 detected NO encoding -> leaving as is");
+			return $text;
 		}
 	}
 
@@ -399,7 +420,8 @@ class ArticleExtractor {
 	/**
 	 * Checks the passed in HTML for any hints within the HTML for language. Should
 	 * return the ISO 639-1 language code if found or false if no language could be determined
-	 * from the dom model
+	 * from the dom model.
+	 *
 	 */
 	private function checkHTMLForLanguageHint($html_string) {
 
@@ -410,11 +432,29 @@ class ArticleExtractor {
 		$htmltag = $dom->find('html');
 		$lang = $htmltag->getAttribute('lang');
 		
+		// Check for lang in HTML tag
 		if ($lang != null) {
 			$this->log_debug("checkHTMLForLanguageHint: Found language: " . $lang . ", returning " . substr($lang,0,2));
 			return substr($lang,0,2);
 		}
+		// Otherwise...
 		else {
+		
+			// Check to see if we have a <meta name="content-language" content="ja" /> type tag
+			$metatags = $dom->find("meta");
+			
+			foreach ($metatags as $tag) {
+				$this->log_debug("Checking tag: " . $tag->getAttribute('name'));
+				if ($tag->getAttribute('name') == 'content-language') {
+					return $tag->getAttribute('content');
+				} 
+			}
+			
+			if ($metatag) { 
+				$this->log_debug("checkHTMLForLanguageHint: Found content-language meta tag " . $metatag->innerHtml);
+				return $metatag->getAttribute('content');
+			}
+			
 			$this->log_debug("checkHTMLForLanguageHint: Found no language");
 			return false;
 		}

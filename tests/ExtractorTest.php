@@ -13,6 +13,8 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'https://www.bloomberg.com/news/articles/2017-03-13/bitcoin-miners-signal-revolt-in-push-to-fix-sluggish-blockchain',
 		'https://t.co/kwb19AGfxl',
 		'http://www.slate.com/articles/news_and_politics/war_stories/2017/01/trump_talks_about_himself_complains_about_media_at_first_official_event.html',
+		'http://calnewport.com/blog/2017/03/13/yuval-harari-works-less-than-you/?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
+		'http://www.asahi.com/articles/ASK5B4HSVK5BUHBI01L.html?iref=comtop_latestnews_03',
 		'http://www3.nhk.or.jp/news/html/20170510/k10010976181000.html',
 	];
 
@@ -37,7 +39,13 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		foreach($this->problem_sites as $url) {
 			$parser = new ArticleExtractor();
 			echo "Testing: " . $url . "\n";
-			$this->assertNotEmpty($parser->getArticleText($url)['text']);
+			
+			$result = $parser->getArticleText($url);
+			$this->assertNotEmpty($result['title']);
+			$this->assertNotEmpty($result['text']);
+			$this->assertNotEmpty($result['language']);
+			$this->assertNotEmpty($result['parse_method']);
+			$this->assertNotEmpty($result['language_method']);
 		}
 	}
 
