@@ -9,13 +9,15 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'http://www.mckinsey.com/industries/financial-services/our-insights/engaging-customers-the-evolution-of-asia-pacific-digital-banking?cid=other-eml-alt-mip-mck-oth-1701',
 		'http://www.nhregister.com/opinion/20170116/poor-elijahs-almanack-some-choice-observations',
 		'http://www.mckinsey.com/business-functions/digital-mckinsey/our-insights/the-next-generation-operating-model-for-the-digital-world?cid=reinventing-eml-alt-mip-mck-oth-1703',
-		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',
 		'https://www.bloomberg.com/news/articles/2017-03-13/bitcoin-miners-signal-revolt-in-push-to-fix-sluggish-blockchain',
-		'https://t.co/kwb19AGfxl',
+		'https://t.co/kwb19AGfxl',	// Redirects
 		'http://www.slate.com/articles/news_and_politics/war_stories/2017/01/trump_talks_about_himself_complains_about_media_at_first_official_event.html',
 		'http://calnewport.com/blog/2017/03/13/yuval-harari-works-less-than-you/?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
-		'http://www.asahi.com/articles/ASK5B4HSVK5BUHBI01L.html?iref=comtop_latestnews_03',
-		'http://www3.nhk.or.jp/news/html/20170510/k10010976181000.html',
+		'http://www3.nhk.or.jp/news/html/20170510/k10010976181000.html',	// Japanese
+		'http://www.asahi.com/articles/ASK5B4HSVK5BUHBI01L.html?iref=comtop_latestnews_03',				// Japanese
+		'http://www.worldjournal.com/4967619/article-「骯髒沒品！」-川普罵遍自由派名嘴-2/?ref=首頁_今日重點',	// Chinese
+		'http://www.dn.pt/sociedade/interior/ele-e-uma-estrela-pop-ele-e-o-papa-do-povo-8472352.html',  // Portuguese
+		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',
 	];
 
 	private $known_problems = [

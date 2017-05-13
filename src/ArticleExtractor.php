@@ -7,6 +7,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use PHPHtmlParser\Dom;
 use PHPHtmlParser\Dom\HtmlNode;
 use PHPHtmlParser\Dom\TextNode;
+use DetectLanguage\DetectLanguage;
  
 class ArticleExtractor {
 
@@ -194,17 +195,17 @@ class ArticleExtractor {
 
 			// If we have an env variable called YANDEX_API_KEY, let's make the call to the
 			// function with a substring of the text
-			if ($api_key = getenv("YANDEX_API_KEY")) {
-				$detect_method = "yandex";
+			if ($api_key = getenv("DETECT_LANGUAGE_KEY")) {
+				$detect_method = "service";
 				$language = $this->identifyLanguage(mb_substr($clean_utf_text,0,100), $api_key);
 				$this->log_debug("Language determined to be: " . $language);
 			}
 			else {
-				$this->log_debug("YANDEX_API_KEY environment variable not set - cannot proceed");
+				$this->log_debug("DETECT_LANGUAGE_KEY environment variable not set - cannot proceed");
 			}
 		}
 		else {
-			$this->log_debug("Skipping Yandex language check");
+			$this->log_debug("Skipping DetectLanguage service check");
 		}
 		
 		$this->log_debug("text: " . $clean_utf_text);
@@ -384,37 +385,36 @@ class ArticleExtractor {
 	
 
 	/**
-	 * Identifies the language received in the UTF-8 text using the Yandex API
+	 * Identifies the language received in the UTF-8 text using the DetectLanguage API key.
+	 * Returns false if the language could not be identified and the ISO code if it can be
 	 */ 
-	private function identifyLanguage($text, $yandex_api_key)
+	private function identifyLanguage($text, $api_key)
 	{
 		$this->log_debug("identifyLanguage: " . $text);
-	
-		if ($text == null || $yandex_api_key == null) {
-			return null;
+    
+		if ($api_key == null) {
+			$this->log_debug("identifyLanguage: Cannot detect language. No api key passed in");
+			return false;
 		}
+
+    	try {
+			// Set the API key for detect language library
+			DetectLanguage::setApiKey($api_key);    
 	
-		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/detect?key=" . $yandex_api_key;
-		$url = $baseUrl . "&text=" . urlencode($text);
-
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-
-		$output = curl_exec($ch);
-		if ($output)
-		{
-			$outputJson = json_decode($output);
+			// Detect the language
+			$languageCode = DetectLanguage::simpleDetect($text);
 			
-			if ($outputJson->code == 200)
-			{
-				if (strlen($outputJson->lang) > 0)
-				{
-					return $outputJson->lang;
-				}
+			if ($languageCode == null) {
+				return false;
+			}
+			else {
+				return $languageCode;
 			}
 		}
-
-		return "unknown";
+		catch (\Exception $e) {
+			$this->log_debug("identifyLanguage: Error with DetectLanguage routine. Returning false: Message is " . $e->getMessage());
+			return false;
+		}
 	}
 	
 	/**
