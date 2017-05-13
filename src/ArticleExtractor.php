@@ -450,11 +450,6 @@ class ArticleExtractor {
 				} 
 			}
 			
-			if ($metatag) { 
-				$this->log_debug("checkHTMLForLanguageHint: Found content-language meta tag " . $metatag->innerHtml);
-				return $metatag->getAttribute('content');
-			}
-			
 			$this->log_debug("checkHTMLForLanguageHint: Found no language");
 			return false;
 		}
