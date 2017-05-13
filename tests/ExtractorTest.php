@@ -17,7 +17,7 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		'http://www.asahi.com/articles/ASK5B4HSVK5BUHBI01L.html?iref=comtop_latestnews_03',				// Japanese
 		'http://www.worldjournal.com/4967619/article-「骯髒沒品！」-川普罵遍自由派名嘴-2/?ref=首頁_今日重點',	// Chinese
 		'http://www.dn.pt/sociedade/interior/ele-e-uma-estrela-pop-ele-e-o-papa-do-povo-8472352.html',  // Portuguese
-		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',
+		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',				// Requires remote language check
 	];
 
 	private $known_problems = [
@@ -42,7 +42,7 @@ class ExtractorTest extends PHPUnit_Framework_TestCase {
 		echo "\n";
 		
 		foreach($this->problem_sites as $url) {
-			$parser = new ArticleExtractor();
+			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'));
 			echo "Testing: " . $url . "\n";
 			
 			$result = $parser->getArticleText($url);

@@ -19,6 +19,13 @@ class ArticleExtractor {
  
 	// Elements we want to place a space in front of when converting to text
 	private $space_elements = ['p', 'li'];
+	
+	// API key for the remote detection service
+	private $api_key = null;
+	
+	public function __construct($api_key) {
+		$this->api_key = $api_key;
+	}	
 
 	/**
 	 * The only public function for this class. getArticleText returns the best guess of the
@@ -189,23 +196,14 @@ class ArticleExtractor {
 */
 
 		// If we've got some text and we still don't have a language
-		if ($clean_utf_text != null && $language == null) {
+		if ($clean_utf_text != null && $language == null && $this->api_key != null) {
 		
-			$this->log_debug("Attempting to check language via Yandex");
-
-			// If we have an env variable called YANDEX_API_KEY, let's make the call to the
-			// function with a substring of the text
-			if ($api_key = getenv("DETECT_LANGUAGE_KEY")) {
-				$detect_method = "service";
-				$language = $this->identifyLanguage(mb_substr($clean_utf_text,0,100), $api_key);
-				$this->log_debug("Language determined to be: " . $language);
-			}
-			else {
-				$this->log_debug("DETECT_LANGUAGE_KEY environment variable not set - cannot proceed");
-			}
+			$detect_method = "service";
+			$language = $this->identifyLanguage(mb_substr($clean_utf_text,0,100));
+			$this->log_debug("Language determined to be: " . $language);
 		}
 		else {
-			$this->log_debug("Skipping DetectLanguage service check");
+			$this->log_debug("Skipping remote language detection service check");
 		}
 		
 		$this->log_debug("text: " . $clean_utf_text);
@@ -388,18 +386,18 @@ class ArticleExtractor {
 	 * Identifies the language received in the UTF-8 text using the DetectLanguage API key.
 	 * Returns false if the language could not be identified and the ISO code if it can be
 	 */ 
-	private function identifyLanguage($text, $api_key)
+	private function identifyLanguage($text)
 	{
 		$this->log_debug("identifyLanguage: " . $text);
     
-		if ($api_key == null) {
+		if ($this->api_key == null) {
 			$this->log_debug("identifyLanguage: Cannot detect language. No api key passed in");
 			return false;
 		}
 
     	try {
 			// Set the API key for detect language library
-			DetectLanguage::setApiKey($api_key);    
+			DetectLanguage::setApiKey($this->api_key);    
 	
 			// Detect the language
 			$languageCode = DetectLanguage::simpleDetect($text);
