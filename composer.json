@@ -13,10 +13,11 @@
       "php": ">=5.5",
 	    "scotteh/php-goose": "dev-master",
       "thesoftwarefanatics/php-html-parser": "^1.8.0",
-      "detectlanguage/detectlanguage": "2.*"
+      "detectlanguage/detectlanguage": "2.*",
+      "andreskrey/readability.php": "^1.2.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "4.0.*"
+        "phpunit/phpunit": "^6.0"
     },
     "autoload": {
         "psr-4": {

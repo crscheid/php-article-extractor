@@ -1,232 +1,337 @@
-<?php 
+<?php
 
 namespace Cscheide\ArticleExtractor;
 
 use Goose\Client as GooseClient;
+
 use GuzzleHttp\Client as GuzzleClient;
+
+use andreskrey\Readability\Readability;
+use andreskrey\Readability\Configuration;
+use andreskrey\Readability\ParseException;
+
 use PHPHtmlParser\Dom;
 use PHPHtmlParser\Dom\HtmlNode;
 use PHPHtmlParser\Dom\TextNode;
+
 use DetectLanguage\DetectLanguage;
- 
+
 class ArticleExtractor {
 
 	// Debug flag - set to true for convenience during development
 	private $debug = false;
-	
+
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
- 
+
 	// Elements we want to place a space in front of when converting to text
 	private $space_elements = ['p', 'li'];
-	
+
 	// API key for the remote detection service
 	private $api_key = null;
-	
-	public function __construct($api_key) {
+
+	public function __construct($api_key = null) {
 		$this->api_key = $api_key;
-	}	
+	}
+
+
+  /**
+   * Provided for backward compatibility.
+   */
+  public function getArticleText($url) {
+    return $this->processURL($url);
+  }
 
 	/**
-	 * The only public function for this class. getArticleText returns the best guess of the
-	 * human readable part of a URL, as well as some meta data associated with the parsing.
+	 * The only public function for this class. processURL returns the best guess
+   * of the human readable part of a URL, as well as additional meta data
+   * associated with the parsing.
 	 *
 	 * Returns an array with the following information:
 	 *
 	 * [
 	 *	  title => (the title of the article)
 	 *	  text => (the human readable piece of the article)
-	 *	  parse_method => (the internal processing method used to parse the article)
+	 *	  parse_method => (the internal processing method used to parse the article, "goose", "custom", "readability"
 	 *	  language => (the ISO 639-1 code detected for the language)
 	 *	  language_method => (the way the language was detected)
 	 * ]
+   *
+   * This processing will attempt to use the following methods in this order:
+   *   1. Readability
+   *   2. Goose
+   *   3. Goose with some additional custom processing
+   *
 	 */
-	public function getArticleText($url) {
-		$text = null;
-		$method = "goose";
-		$language = null;
-		$detect_method = null;
-
+	public function processURL($url) {
 		// Check for redirects first
 		$url = $this->checkForRedirects($url);
 
-		// Try to get the article using Goose first
-		$goose = new GooseClient(['image_fetch_best' => false]);
-		$article = $goose->extractContent($url);
-	
-		// If Goose failed
-		if ($article->getCleanedArticleText() == null) {
-		
-			$this->log_debug("Trying custom method");
-	
-			// Get the HTML from goose
-			$html_string = $article->getRawHtml();
-			
-			$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
-			$this->log_debug($html_string);
-			$this->log_debug("-------------------------------------------------------------------------------------------------");
-			
-			// Ok then try it a different way
-			$dom = new Dom;
-			$dom->load($html_string, ['whitespaceTextNode' => false]);
+    $this->log_debug("Attempting to parse " . $url);
 
-			// First, just completely remove the items we don't even care about		
-			$nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
-			
-			foreach($nodesToRemove as $node) {
-				$node->delete();
-				unset($node);
-			}		
 
-			// Records to store information on the best dom element found thusfar
-			$best_element = null;
-			$best_element_wc = 0;
-			$best_element_wc_ratio = -1; 
-			
-//			$html = $dom->outerHtml;
 
-			// Get a list of qualifying nodes we want to evaluate as the top node for content
-			$candidateNodes = $this->buildAllNodeList($dom->root);
-			$this->log_debug("Candidate node count: " . count($candidateNodes));
+    // First attempt to parse the URL into the structure we want
+    $results = $this->parseViaReadability($url);
 
-			// Find a target best element
-			foreach($candidateNodes as $node) {
+    // If we don't see what we want, try our other method
+    if ($results['text'] == null) {
+      $results = $this->parseViaGooseOrCustom($url);
+    }
 
-				// Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
-				$this_element_wc = str_word_count($node->text(true));
-				$this_element_whitecount = substr_count($node->text(true), ' ');
-				$this_element_wc_ratio = -1;
-			
-				// If the wordcount is not zero, then calculation the wc ratio, otherwise set it to -1
-				$this_element_wc_ratio = ($this_element_wc == 0) ? -1 : $this_element_whitecount / $this_element_wc;
-				
-				// Calculate the word count contribution for all children elements
-				$children_wc = 0;
-				$children_num = 0;
-				foreach($node->getChildren() as $child) {
-					if (in_array($child->tag->name(),$this->valid_root_elements)) {
-						$children_num++;
-						$children_wc += str_word_count($child->text(true));
-					}
-				}
+    // If we still don't havewhat we want, return what we have
+    if ($results['text'] == null) {
+      $results['language'] = null;
+      $results['language_method'] = null;
+      unset($results['html']); // remove raw HTML before returning it
+      return $results;
+    }
 
-				// This is the contribution for this particular element not including the children types above
-				$this_element_wc_contribution = $this_element_wc - $children_wc;
+    // Otherwise, continue on...
 
-				// Debug information on this element for development purposes
-				$this->log_debug("Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $this_element_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_element_wc . "\tBest Ratio:\t" . number_format($best_element_wc_ratio,2) . " " . $node->getAttribute('class'));
-
-				// Now check to see if this element appears better than any previous one
-			
-				// We do this by first checking to see if this element's WC contribution is greater than the previous
-				if	($this_element_wc_contribution > $best_element_wc) {
-				
-					// If we so we then calculate the improvement ratio from the prior best and avoid division by 0
-					$wc_improvement_ratio = ($best_element_wc == 0) ? 100 : $this_element_wc_contribution / $best_element_wc;
-
-					// There are three conditions in which this candidate should be chosen
-					//		1. The previous best is zero
-					//		2. The new best is more than 10% greater WC contribution than the prior best
-					//		3. The new element wc ratio is less than the existing best element's ratio
-
-					if ( $best_element_wc == 0 || $wc_improvement_ratio	 >= 1.10 || $this_element_wc_ratio <= $best_element_wc_ratio) {
-						$best_element_wc = $this_element_wc_contribution;
-						$best_element_wc_ratio = $this_element_wc_ratio;
-						$best_element = $node;
-						$this->log_debug("\t *** New best element ***");
-					}					
-				}
-			}
-			
-			// If we have a candidate element
-			if ($best_element) {
-
-				// Now we need to do some sort of peer analysis
-				$best_element = $this->peerAnalysis($best_element);
-
-/*				
-				// Add space before HTML elements that if removed create concatenation issues (e.g. <p>, <li>)
-				$nodesToEditText = $best_element->find('p, li');
-			
-				foreach($nodesToEditText as $node) {
-					$node->setText(" " . $node->text);
-				}		
-				
-*/
-				// 
-				// Decode the text
-//				$text = html_entity_decode($best_element->text(true));
-				$text = html_entity_decode($this->getTextForNode($best_element));
-				
-				// Set the method so the caller knows which one was used
-				$method = "custom";
-			}
-			else {
-				$method = null;
-			}
+    // Implement check in HTML to determine if the language is specified somewhere
+		if ($lang_detect = $this->checkHTMLForLanguageHint($results['html'])) {
+			$results['language_method'] = "html";
+			$results['language'] = $lang_detect;
+			$this->log_debug("Language was detected as " . $results['language'] . " from HTML");
 		}
-		else {
-			$this->log_debug("Utilized goose method");
-			$text = $article->getCleanedArticleText();
-		}
-		
-		// Implement check in HTML to determine if the language is specified somewhere
-		if ($lang_detect = $this->checkHTMLForLanguageHint($article->getRawHtml())) {
-			$detect_method = "html";
-			$language = $lang_detect;
-			$this->log_debug("Language was detected as " . $language . " from HTML");
-		}
-		
+
 		$this->log_debug("--------- PRE UTF 8 CLEANING -------------------------------------");
-		$this->log_debug("title: " . $article->getTitle());
-		$this->log_debug("text: " . $text);
+		$this->log_debug("title: " . $results['title']);
+		$this->log_debug("text: " . $results['text']);
 		$this->log_debug("------------------------------------------------------------------");
-		
+
 		// Convert items to UTF-8
-		$clean_utf_title = $this->shiftEncodingToUTF8($article->getTitle());
-		$clean_utf_text = $this->shiftEncodingToUTF8($text);
+		$results['title'] = $this->shiftEncodingToUTF8($results['title']);
+		$results['text'] = $this->shiftEncodingToUTF8($results['text']);
 
-/*
-		// Check for null title - this happened with some Japanese site where the title was not parsed well through the iconv(mb_detect ... process
-		if ($clean_utf_title == null) {
-		
-			// TODO: Run this through the DOM model and look for <title> tag or <meta property="og:title" content="..." />
-			$clean_utf_title = $article->getTitle();
-		}
-*/
+		// If we've got some text, we still don't have a language, and we're configured with an API key...
+		if ($results['text'] != null && $language == null && $this->api_key != null) {
 
-		// If we've got some text and we still don't have a language
-		if ($clean_utf_text != null && $language == null && $this->api_key != null) {
-		
-			$detect_method = "service";
-			$language = $this->identifyLanguage(mb_substr($clean_utf_text,0,100));
-			$this->log_debug("Language determined to be: " . $language);
+      // Then use the service to detect the language
+			$results['language_method'] = "service";
+			$results['language'] = $this->identifyLanguage(mb_substr($results['text'],0,100));
+			$this->log_debug("Language was detected as  " . $results['language'] . " from service");
 		}
 		else {
 			$this->log_debug("Skipping remote language detection service check");
+      $results['language_method'] = null;
+      $results['language'] = null;
 		}
-		
-		$this->log_debug("text: " . $clean_utf_text);
-		$this->log_debug("title: " . $clean_utf_title);
-		$this->log_debug("language: " . $language);
-		$this->log_debug("parse_method: " . $method);
-		$this->log_debug("language_method: " . $detect_method);
 
-		return ['title'=>$clean_utf_title,'text'=>$clean_utf_text,'parse_method'=>$method,'language'=>$language,'language_method'=>$detect_method];
+		$this->log_debug("text: " . $results['text']);
+		$this->log_debug("title: " . $results['title']);
+		$this->log_debug("language: " . $results['language']);
+		$this->log_debug("parse_method: " . $results['parse_method']);
+		$this->log_debug("language_method: " . $results['language_method']);
+
+    unset($results['html']); // remove raw HTML before returning it
+
+    return $results;
+
+  }
+
+  /**
+	 * Attempts to parse via the Readability libary aReturns the following array.
+   * [
+   *    'method' => "readability"
+   *    'title' => <the title of the article>
+   *    'text' => <the cleaned text of the article> | null
+   *    'html' => <the raw HTML of the article>
+   * ]
+   *
+   * Parsing can be considered unavailable if 'text' is returned as null
+	 */
+  private function parseViaReadability($url) {
+
+    $text = null;
+    $title = null;
+		$method = "readability";
+
+    $readability = new Readability(new Configuration(['SummonCthulhu'=>true]));
+
+    try {
+      $html = file_get_contents($url);
+      $readability->parse($html);
+      $title = $readability->getTitle();
+      $text = $readability->getContent();
+      $text = strip_tags($text); // Remove all HTML tags
+      $text = html_entity_decode($text); // Make sure we have no HTML entities left over
+      //$text = str_replace("\r\r", "\r", $text); // remove carriage returns
+      //$text = str_replace("\n\n", "\n", $text); // remove excessive line returns
+
+    }
+    catch (ParseException $e) {
+      $this->log_debug('parseViaReadability: Error processing text', $e->getMessage());
+    }
+
+    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+
+  }
+
+  /**
+	 * Attempts to parse via the Goose libary and our custom processing. Returns the
+   * following array.
+   * [
+   *    'method' => "goose" | "custom" | null
+   *    'title' => <the title of the article>
+   *    'text' => <the cleaned text of the article> | null
+   *    'html' => <the raw HTML of the article>
+   * ]
+   *
+   * Parsing can be considered unavailable if 'text' is returned as null
+	 */
+  private function parseViaGooseOrCustom($url) {
+
+    $text = null;
+		$method = "goose";
+    $title = null;
+    $html = null;
+
+    $this->log_debug("Parsing via: goose method");
+
+		// Try to get the article using Goose first
+		$goose = new GooseClient(['image_fetch_best' => false]);
+
+    try {
+      $article = $goose->extractContent($url);
+      $title = $article->getTitle();
+      $html = $article->getRawHtml();
+
+      // If Goose failed
+  		if ($article->getCleanedArticleText() == null) {
+
+  			// Get the HTML from goose
+  			$html_string = $article->getRawHtml();
+
+  			//$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
+  			//$this->log_debug($html_string);
+  			//$this->log_debug("-------------------------------------------------------------------------------------------------");
+
+  			// Ok then try it a different way
+  			$dom = new Dom;
+  			$dom->load($html_string, ['whitespaceTextNode' => false]);
+
+  			// First, just completely remove the items we don't even care about
+  			$nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
+
+  			foreach($nodesToRemove as $node) {
+  				$node->delete();
+  				unset($node);
+  			}
+
+  			// Records to store information on the best dom element found thusfar
+  			$best_element = null;
+  			$best_element_wc = 0;
+  			$best_element_wc_ratio = -1;
+
+        // $html = $dom->outerHtml;
+
+  			// Get a list of qualifying nodes we want to evaluate as the top node for content
+  			$candidateNodes = $this->buildAllNodeList($dom->root);
+  			$this->log_debug("Candidate node count: " . count($candidateNodes));
+
+  			// Find a target best element
+  			foreach($candidateNodes as $node) {
+
+  				// Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
+  				$this_element_wc = str_word_count($node->text(true));
+  				$this_element_whitecount = substr_count($node->text(true), ' ');
+  				$this_element_wc_ratio = -1;
+
+  				// If the wordcount is not zero, then calculation the wc ratio, otherwise set it to -1
+  				$this_element_wc_ratio = ($this_element_wc == 0) ? -1 : $this_element_whitecount / $this_element_wc;
+
+  				// Calculate the word count contribution for all children elements
+  				$children_wc = 0;
+  				$children_num = 0;
+  				foreach($node->getChildren() as $child) {
+  					if (in_array($child->tag->name(),$this->valid_root_elements)) {
+  						$children_num++;
+  						$children_wc += str_word_count($child->text(true));
+  					}
+  				}
+
+  				// This is the contribution for this particular element not including the children types above
+  				$this_element_wc_contribution = $this_element_wc - $children_wc;
+
+  				// Debug information on this element for development purposes
+  				$this->log_debug("Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $this_element_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_element_wc . "\tBest Ratio:\t" . number_format($best_element_wc_ratio,2) . " " . $node->getAttribute('class'));
+
+  				// Now check to see if this element appears better than any previous one
+
+  				// We do this by first checking to see if this element's WC contribution is greater than the previous
+  				if	($this_element_wc_contribution > $best_element_wc) {
+
+  					// If we so we then calculate the improvement ratio from the prior best and avoid division by 0
+  					$wc_improvement_ratio = ($best_element_wc == 0) ? 100 : $this_element_wc_contribution / $best_element_wc;
+
+  					// There are three conditions in which this candidate should be chosen
+  					//		1. The previous best is zero
+  					//		2. The new best is more than 10% greater WC contribution than the prior best
+  					//		3. The new element wc ratio is less than the existing best element's ratio
+
+  					if ( $best_element_wc == 0 || $wc_improvement_ratio	 >= 1.10 || $this_element_wc_ratio <= $best_element_wc_ratio) {
+  						$best_element_wc = $this_element_wc_contribution;
+  						$best_element_wc_ratio = $this_element_wc_ratio;
+  						$best_element = $node;
+  						$this->log_debug("\t *** New best element ***");
+  					}
+  				}
+  			}
+
+  			// If we have a candidate element
+  			if ($best_element) {
+
+  				// Now we need to do some sort of peer analysis
+  				$best_element = $this->peerAnalysis($best_element);
+
+          /*
+  				// Add space before HTML elements that if removed create concatenation issues (e.g. <p>, <li>)
+  				$nodesToEditText = $best_element->find('p, li');
+
+  				foreach($nodesToEditText as $node) {
+  					$node->setText(" " . $node->text);
+  				}
+
+          */
+  				//
+  				// Decode the text
+          //$text = html_entity_decode($best_element->text(true));
+  				$text = html_entity_decode($this->getTextForNode($best_element));
+
+  				// Set the method so the caller knows which one was used
+  				$method = "custom";
+  			}
+  			else {
+  				$method = null;
+  			}
+  		}
+  		else {
+  			$text = $article->getCleanedArticleText();
+  		}
+
+    }
+    catch (\Exception $e) {
+      $this->log_debug('parseViaGooseOrCustom: Unable to request url ' . $url . " due to " . $e->getMessage());
+    }
+
+    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+
 	}
 
 	/**
 	 * Checks for redirects given a URL. Will return the ultimate final URL if found within
 	 * 5 redirects. Otherwise, it will return the last url it found and log too many redirects
-	 */ 
+	 */
 	private function checkForRedirects($url, $count = 0) {
 		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
-		
+
 		if ($count > 5) {
 			$this->log_debug("Too many redirects");
 			return $url;
 		}
-		
+
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_HEADER, true);
@@ -243,12 +348,12 @@ class ArticleExtractor {
 			return $url;
 		}
 	}
-	
+
 	/**
 	 * Shifts encoding to UTF if needed
 	 */
 	private function shiftEncodingToUTF8($text) {
-	
+
 		if ($encoding = mb_detect_encoding($text, mb_detect_order(), true)) {
 			$this->log_debug("shiftEncodingToUTF8 detected encoding of " . $encoding . " -> shifting to UTF-8");
 			return iconv($encoding, "UTF-8", $text);
@@ -264,11 +369,11 @@ class ArticleExtractor {
 		$this->log_debug("PEER ANALYSIS ON " . $element->tag->name() . " (" . $element->getAttribute('class') . ")");
 
 		$range = 0.50;
-	
+
 		$element_wc = str_word_count($element->text(true));
 		$element_whitecount = substr_count($element->text(true), ' ');
 		$element_wc_ratio = $element_whitecount / $element_wc;
-	
+
 		if ($element->getParent() != null) {
 
 			$parent = $element->getParent();
@@ -285,14 +390,14 @@ class ArticleExtractor {
 					$child_wc_ratio = $child_whitecount / $child_wc;
 
 					$this->log_debug("	  Child: " . $child->tag->name() . " (" . $child->getAttribute('class') . ") WC: " . $child_wc . " Ratio: " . number_format($child_wc_ratio,2) );
-					
+
 					if ($child_wc > ($element_wc * $range) && $child_wc < ($element_wc * (1 + $range))) {
 						$this->log_debug("** good peer found **");
 						$peers_with_close_wc++;
 					}
 				}
 			}
-			
+
 			if ($peers_with_close_wc > 2) {
 				$this->log_debug("Returning parent");
 				return $parent;
@@ -325,7 +430,7 @@ class ArticleExtractor {
 				{
 					// Push the children's children
 					$return_array = array_merge($return_array, array_values($this->buildAllNodeList($child, $depth+1)));
-	
+
 					// Include the following tags in the counts for children and number of words
 					if (in_array($child->tag->name(),$this->valid_root_elements)) {
 						array_push($return_array, $child);
@@ -339,24 +444,23 @@ class ArticleExtractor {
 		return $return_array;
 	}
 
-
 	private function log_debug($message) {
 		if ($this->debug) {
 			echo $message . "\n";
 		}
 	}
-	
+
 	/*
 	 * This function gets the text representation of a node and works recursively to do so.
 	 * It also trys to format an extra space in HTML elements that create concatenation
 	 * issues when they are slapped together
-	 */ 
+	 */
 	private function getTextForNode($element) {
 
 		$text = '';
 
 		$this->log_debug("getTextForNode: "	 . $element->getTag()->name());
-		
+
 		// Look at each child
 		foreach ($element->getChildren() as $child) {
 
@@ -366,7 +470,7 @@ class ArticleExtractor {
 			}
 			// Otherwise, if it is an HtmlNode
 			elseif ($child instanceof HtmlNode) {
-				
+
 				// If this is one of the HTML tags we want to add a space to
 				if (in_array($child->getTag()->name(),$this->space_elements)) {
 					$text .= " " . $this->getTextForNode($child);
@@ -380,16 +484,15 @@ class ArticleExtractor {
 		// Return our text string
 		return $text;
 	}
-	
+
 
 	/**
 	 * Identifies the language received in the UTF-8 text using the DetectLanguage API key.
 	 * Returns false if the language could not be identified and the ISO code if it can be
-	 */ 
-	private function identifyLanguage($text)
-	{
+	 */
+	private function identifyLanguage($text) {
 		$this->log_debug("identifyLanguage: " . $text);
-    
+
 		if ($this->api_key == null) {
 			$this->log_debug("identifyLanguage: Cannot detect language. No api key passed in");
 			return false;
@@ -397,11 +500,11 @@ class ArticleExtractor {
 
     	try {
 			// Set the API key for detect language library
-			DetectLanguage::setApiKey($this->api_key);    
-	
+			DetectLanguage::setApiKey($this->api_key);
+
 			// Detect the language
 			$languageCode = DetectLanguage::simpleDetect($text);
-			
+
 			if ($languageCode == null) {
 				return false;
 			}
@@ -414,7 +517,7 @@ class ArticleExtractor {
 			return false;
 		}
 	}
-	
+
 	/**
 	 * Checks the passed in HTML for any hints within the HTML for language. Should
 	 * return the ISO 639-1 language code if found or false if no language could be determined
@@ -423,34 +526,41 @@ class ArticleExtractor {
 	 */
 	private function checkHTMLForLanguageHint($html_string) {
 
-		// Ok then try it a different way
-		$dom = new Dom;
-		$dom->load($html_string, ['whitespaceTextNode' => false]);
-		
-		$htmltag = $dom->find('html');
-		$lang = $htmltag->getAttribute('lang');
-		
-		// Check for lang in HTML tag
-		if ($lang != null) {
-			$this->log_debug("checkHTMLForLanguageHint: Found language: " . $lang . ", returning " . substr($lang,0,2));
-			return substr($lang,0,2);
-		}
-		// Otherwise...
-		else {
-		
-			// Check to see if we have a <meta name="content-language" content="ja" /> type tag
-			$metatags = $dom->find("meta");
-			
-			foreach ($metatags as $tag) {
-				$this->log_debug("Checking tag: " . $tag->getAttribute('name'));
-				if ($tag->getAttribute('name') == 'content-language') {
-					return $tag->getAttribute('content');
-				} 
-			}
-			
-			$this->log_debug("checkHTMLForLanguageHint: Found no language");
-			return false;
-		}
+    try {
+      // Ok then try it a different way
+  		$dom = new Dom;
+  		$dom->load($html_string, ['whitespaceTextNode' => false]);
+
+  		$htmltag = $dom->find('html');
+  		$lang = $htmltag->getAttribute('lang');
+
+  		// Check for lang in HTML tag
+  		if ($lang != null) {
+  			$this->log_debug("checkHTMLForLanguageHint: Found language: " . $lang . ", returning " . substr($lang,0,2));
+  			return substr($lang,0,2);
+  		}
+  		// Otherwise...
+  		else {
+
+  			// Check to see if we have a <meta name="content-language" content="ja" /> type tag
+  			$metatags = $dom->find("meta");
+
+  			foreach ($metatags as $tag) {
+  				$this->log_debug("Checking tag: " . $tag->getAttribute('name'));
+  				if ($tag->getAttribute('name') == 'content-language') {
+  					return $tag->getAttribute('content');
+  				}
+  			}
+
+  			$this->log_debug("checkHTMLForLanguageHint: Found no language");
+  			return false;
+  		}
+    }
+    catch (\Exception $e) {
+      $this->log_debug("checkHTMLForLanguageHint: Returning false as exception occurred: " . $e->getMessage());
+      return false;
+    }
+
 	}
 
 	/**
@@ -481,7 +591,7 @@ class ArticleExtractor {
 
 		return $text;
 	}
-	*/	
+	*/
 }
 
 ?>
