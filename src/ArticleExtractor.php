@@ -64,12 +64,11 @@ class ArticleExtractor {
    *
 	 */
 	public function processURL($url) {
+
 		// Check for redirects first
 		$url = $this->checkForRedirects($url);
 
     $this->log_debug("Attempting to parse " . $url);
-
-
 
     // First attempt to parse the URL into the structure we want
     $results = $this->parseViaReadability($url);
@@ -106,7 +105,7 @@ class ArticleExtractor {
 		$results['text'] = $this->shiftEncodingToUTF8($results['text']);
 
 		// If we've got some text, we still don't have a language, and we're configured with an API key...
-		if ($results['text'] != null && $results['language'] == null && $this->api_key != null) {
+		if ($results['text'] != null && !isset($results['language']) && $this->api_key != null) {
 
       // Then use the service to detect the language
 			$results['language_method'] = "service";
