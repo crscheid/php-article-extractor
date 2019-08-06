@@ -6,6 +6,8 @@ use PHPUnit\Framework\TestCase;
 class ExtractorTest extends TestCase {
 
 	private $problem_sites = [
+		'http://feeds.reuters.com/~r/reuters/companyNews/~3/vaJcALwyZeA/mexico-k', // Issue #23 301 redirects to incomplete URL
+		'https://www.bbc.co.uk/news/uk-politics-47379565', // Issue #23 301 redirects to incomplete URL
 		'https://www.fastcompany.com/3067246/innovation-agents/the-unexpected-design-challenge-behind-slacks-new-threaded-conversations',
 		'http://www.mckinsey.com/industries/financial-services/our-insights/engaging-customers-the-evolution-of-asia-pacific-digital-banking?cid=other-eml-alt-mip-mck-oth-1701',
 		'http://www.nhregister.com/opinion/20170116/poor-elijahs-almanack-some-choice-observations',
@@ -13,10 +15,8 @@ class ExtractorTest extends TestCase {
 		'https://t.co/kwb19AGfxl',	// Redirects
 		'http://www.slate.com/articles/news_and_politics/war_stories/2017/01/trump_talks_about_himself_complains_about_media_at_first_official_event.html',
 		'http://calnewport.com/blog/2017/03/13/yuval-harari-works-less-than-you/?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
-		'https://www.worldjournal.com/5683780/article-小唐納傳會女俄諜操控者-檢方：fbi有音檔/?ref=首頁_今日重點',	// Chinese
 		'http://www.dn.pt/sociedade/interior/ele-e-uma-estrela-pop-ele-e-o-papa-do-povo-8472352.html',  // Portuguese
 		'https://hbr.org/2017/03/the-promise-of-blockchain-is-a-world-without-middlemen',				// Requires remote language check
-		'https://abcnews.go.com/Politics/wireStory/trump-tweets-nice-note-north-koreas-kim-jong-56544275',
 		'http://kotaku.com/nintendo-switch-the-kotaku-review-1792776350?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
 		'http://futurememes.blogspot.jp/2017/01/cognitive-easing-human-identity-crisis.html?m=1',
 		'https://medium.com/personal-growth/thank-god-i-dont-have-a-job-ae2fcb6c096e',
@@ -33,7 +33,7 @@ class ExtractorTest extends TestCase {
 		// HTML doesn't actually contain the story without first loading some client-side javascript, similar to #5 above
 		'http://mw.nikkei.com/sp/#!/article/DGXLASJC20H12_Q7A420C1000000',
 
-		// Temporary redirect 307 to terms of service voilation which prevents link from resolving
+		// Temporary redirect 307 to terms of service violation which prevents link from resolving
 		'https://www.bloomberg.com/news/articles/2018-07-12/jpmorgan-wells-fargo-may-go-back-to-basics-with-loans-in-focus',
 
 		// Multiple redirects

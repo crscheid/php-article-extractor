@@ -1,5 +1,9 @@
 # ChangeLog
 
+## Version 0.8.3
+
+- Closes issue #23 related to 301 redirects when scheme and host is not present.
+
 ## Version 0.8
 
 - Added [andreskrey/readability.php](https://github.com/andreskrey/readability.php) library as the default method of article parsing, using prior methods as a backup.

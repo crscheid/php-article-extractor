@@ -105,17 +105,22 @@ class ArticleExtractor {
 		$results['text'] = $this->shiftEncodingToUTF8($results['text']);
 
 		// If we've got some text, we still don't have a language, and we're configured with an API key...
-		if ($results['text'] != null && !isset($results['language']) && $this->api_key != null) {
+		if ($results['text'] != null && !isset($results['language'])) {
 
-      // Then use the service to detect the language
-			$results['language_method'] = "service";
-			$results['language'] = $this->identifyLanguage(mb_substr($results['text'],0,100));
-			$this->log_debug("Language was detected as  " . $results['language'] . " from service");
-		}
-		else {
-			$this->log_debug("Skipping remote language detection service check");
-      $results['language_method'] = null;
-      $results['language'] = null;
+			// If we have an API key
+			if ($this->api_key != null) {
+
+	      // Then use the service to detect the language
+				$results['language_method'] = "service";
+				$results['language'] = $this->identifyLanguage(mb_substr($results['text'],0,100));
+				$this->log_debug("Language was detected as  " . $results['language'] . " from service");
+			}
+			// Otherwise skip
+			else {
+				$this->log_debug("Skipping remote language detection service check");
+	      $results['language_method'] = null;
+	      $results['language'] = null;
+			}
 		}
 
 		$this->log_debug("text: " . $results['text']);
@@ -326,6 +331,7 @@ class ArticleExtractor {
 	private function checkForRedirects($url, $count = 0) {
 		$this->log_debug("Checking for redirects on " . $url . " count " . $count);
 
+		// First check to see if we've been redirected too many times
 		if ($count > 5) {
 			$this->log_debug("Too many redirects");
 			return $url;
@@ -341,6 +347,26 @@ class ArticleExtractor {
 		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
 			$new_url = trim($r[1]);
 			$this->log_debug("Redirect found to: " . $new_url);
+
+			// Check to see if new redirect has scheme and host
+			$parse_results = parse_url($new_url);
+
+			if ($parse_results['scheme'] == null && $parse_results['host'] == null) {
+
+				// Use scheme, url, and host from passed in URL
+				$old_parse_results = parse_url($url);
+				$scheme_host = $old_parse_results['scheme'] . "://" . $old_parse_results['host'];
+				if ($old_parse_results['port'] != null) {
+					$scheme_host .= ":" . $parse_results['port'];
+				}
+
+				$full_url = $scheme_host . $new_url;
+
+				$this->log_debug("No scheme and host found for: " . $new_url . " -- Utilizing prior redirect scheme and host: " . $full_url);
+				$new_url = $full_url;
+			}
+
+
 			return $this->checkForRedirects($new_url, $count+1);
 		}
 		else {

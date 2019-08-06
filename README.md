@@ -69,3 +69,5 @@ Unit tests are included in this distribution and can be run utilizing PHPUnit
 ```
 ./vendor/phpunit/phpunit/phpunit
 ```
+
+Note: You may need to set the environment variable `DETECT_LANGUAGE_KEY` with your (Detect Language)[http://detectlanguage.com/] key in order for language detection to work properly.
