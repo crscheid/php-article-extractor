@@ -351,7 +351,7 @@ class ArticleExtractor {
 			// Check to see if new redirect has scheme and host
 			$parse_results = parse_url($new_url);
 
-			if ($parse_results['scheme'] == null && $parse_results['host'] == null) {
+			if ( !array_key_exists('scheme', $parse_results) && !array_key_exists('host', $parse_results) )  {
 
 				// Use scheme, url, and host from passed in URL
 				$old_parse_results = parse_url($url);
