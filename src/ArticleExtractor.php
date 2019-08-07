@@ -356,8 +356,10 @@ class ArticleExtractor {
 				// Use scheme, url, and host from passed in URL
 				$old_parse_results = parse_url($url);
 				$scheme_host = $old_parse_results['scheme'] . "://" . $old_parse_results['host'];
-				if ($old_parse_results['port'] != null) {
-					$scheme_host .= ":" . $parse_results['port'];
+
+				// If there is a port, include it
+				if (array_key_exists('port', $old_parse_results)) {
+					$scheme_host .= ":" . $old_parse_results['port'];
 				}
 
 				$full_url = $scheme_host . $new_url;
