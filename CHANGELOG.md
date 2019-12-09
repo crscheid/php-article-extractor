@@ -1,5 +1,18 @@
 # ChangeLog
 
+## Version 0.9
+
+- Updated to include cleaning up of article text.
+
+## Version 0.8.5
+
+- Updated redirect checking logic to include ports
+
+
+## Version 0.8.4
+
+- Resolved 301 redirects to incomplete URL 
+
 ## Version 0.8.3
 
 - Closes issue #23 related to 301 redirects when scheme and host is not present.
