@@ -1,5 +1,11 @@
 # ChangeLog
 
+## Version 1.0
+
+- Updated to modify the approach for cleaning HTML tags and dealing with newlines.
+- Updated README.md to outline the new text format.
+- Closes issue #25
+
 ## Version 0.9
 
 - Updated to include cleaning up of article text.
@@ -11,7 +17,7 @@
 
 ## Version 0.8.4
 
-- Resolved 301 redirects to incomplete URL 
+- Resolved 301 redirects to incomplete URL
 
 ## Version 0.8.3
 

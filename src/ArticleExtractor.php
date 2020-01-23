@@ -134,26 +134,6 @@ class ArticleExtractor {
     return $results;
 
   }
-	  /**
-	Space between the words (and without line-break)
-	 */
-   private function rip_tags($string) {
-
-		// ----- remove HTML TAGs -----
-		$string = preg_replace ('/<[^>]*>/', ' ', $string);
-
-		// ----- remove control characters -----
-		$string = str_replace("\r", '', $string);    // --- replace with empty space
-		$string = str_replace("\n", ' ', $string);   // --- replace with space
-		$string = str_replace("\t", ' ', $string);   // --- replace with space
-
-		// ----- remove multiple spaces -----
-		$string = trim(preg_replace('/ {2,}/', ' ', $string));
-
-		return $string;
-
-	}
-
 
   /**
 	 * Attempts to parse via the Readability libary aReturns the following array.
@@ -179,10 +159,21 @@ class ArticleExtractor {
       $readability->parse($html);
       $title = $readability->getTitle();
       $text = $readability->getContent();
-      $text = strip_tags($this->rip_tags($text)); // Remove all HTML tags
+
+			// Replace all <h*> and </h*> tags with newlines
+			$text = preg_replace ('/<h[1-6]>/', "\n", $text);
+			$text = preg_replace ('/<\/h[1-6]>/', "\n", $text);
+			$text = preg_replace ('/<p>/', "\n", $text);
+			$text = preg_replace ('/<\/p>/', "\n", $text);
+
+      $text = strip_tags($text); // Remove all HTML tags
       $text = html_entity_decode($text); // Make sure we have no HTML entities left over
-      //$text = str_replace("\r\r", "\r", $text); // remove carriage returns
-      //$text = str_replace("\n\n", "\n", $text); // remove excessive line returns
+
+			$text = str_replace("\t", " ", $text); // Replace tabs with spaces
+			$text = preg_replace('/ {2,}/', ' ', $text); // Remove multiple spaces
+
+			$text = str_replace("\r", "\n", $text); // convert carriage returns to newlines
+			$text = preg_replace("/(\n)+/", "$1", $text); // remove excessive line returns
 
     }
     catch (ParseException $e) {

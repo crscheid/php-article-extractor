@@ -62,6 +62,24 @@ $extractor = new ArticleExtractor('your api key');
 ```
 
 
+## Output Format
+
+As of version 1.0, the output format has been altered to provide newline breaks for headings. This is important especially for natural language processing applications in determining sentence boundaries. If this behavior is not desired, simply strip out the additional newlines where needed.
+
+This change was made due the fact that when header and paragraph HTML elements are simply stripped out, there often occurs issues where there is no separation between the heading and the proceeding sentence.
+
+**Example of Output Format for Text Field**
+
+```
+\n
+A database containing 250 million Microsoft customer records has been found unsecured and online\n
+NurPhoto via Getty Images\n
+A new report reveals that 250 million Microsoft customer records, spanning 14 years, have been exposed online without password protection.\n
+Microsoft has been in the news for, mostly, the wrong reasons recently. There is the Internet Explorer zero-day vulnerability that Microsoft hasn't issued a patch for, despite it being actively exploited. That came just days after the U.S. Government issued a critical Windows 10 update now alert concerning the "extraordinarily serious" curveball crypto vulnerability. Now a newly published report, has revealed that 250 million Microsoft customer records, spanning an incredible 14 years in all, have been exposed online in a database with no password protection.\n
+What Microsoft customer records were exposed online, and where did they come from?\n
+```
+
+
 ## Running tests
 
 Unit tests are included in this distribution and can be run utilizing PHPUnit
