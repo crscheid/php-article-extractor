@@ -1,5 +1,9 @@
 # ChangeLog
 
+## Version 1.0.1
+
+- Fixed minor issue with `parse_url` check.
+
 ## Version 1.0
 
 - Updated to modify the approach for cleaning HTML tags and dealing with newlines.
