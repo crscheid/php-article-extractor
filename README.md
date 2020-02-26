@@ -40,10 +40,12 @@ array(5) {
 }
 ```
 
-You can also create the `ArticleExtractor` class by passing in a key for the language detection service. See more information below.
+You can also create the `ArticleExtractor` class by passing in a key for the language detection service as well as a custom User-Agent string. See more information below.
 
 
-## Language Detection Methods
+## Options
+
+### Language Detection Methods
 
 Language detection is handled by either looking for language specifiers within the HTML meta data or by utilizing the [Detect Language](http://detectlanguage.com/) service.
 
@@ -53,12 +55,23 @@ If language detection fails or is not available, both of these fields will be re
 
 [Detect Language](http://detectlanguage.com/) requires the use of an API KEY which you can sign up for. However, you can also use this library without it. If the HTML meta data do not contain information about the language of the article, then `language` and `language_method` will be returned as null values.
 
-To utilize this library utilizing the language detection service, create the `ArticleExtractor` object by passing in your API KEY for [Detect Language](http://detectlanguage.com/) or by setting `DETECT_LANGUAGE_KEY` in your environment variables.
+To utilize this library utilizing the language detection service, create the `ArticleExtractor` object by passing in your API KEY for [Detect Language](http://detectlanguage.com/).
 
 ```php
 use Cscheide\ArticleExtractor\ArticleExtractor;
 
 $extractor = new ArticleExtractor('your api key');
+```
+
+### Setting User Agent
+
+It is possible to set the user-agent for outgoing requests. To do so pass the desired user agent string to the constructor as follows:
+
+```php
+use Cscheide\ArticleExtractor\ArticleExtractor;
+
+$myUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36";
+$extractor = new ArticleExtractor(null, $myUserAgent);
 ```
 
 
@@ -88,4 +101,4 @@ Unit tests are included in this distribution and can be run utilizing PHPUnit
 ./vendor/phpunit/phpunit/phpunit
 ```
 
-Note: You may need to set the environment variable `DETECT_LANGUAGE_KEY` with your [Detect Language](http://detectlanguage.com/) key in order for language detection to work properly.
+> Note: Please set the environment variable `DETECT_LANGUAGE_KEY` with your [Detect Language](http://detectlanguage.com/) key in order for language detection to work properly.

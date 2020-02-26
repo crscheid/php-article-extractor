@@ -6,6 +6,9 @@ use PHPUnit\Framework\TestCase;
 class ExtractorTest extends TestCase {
 
 	private $problem_sites = [
+		'https://slashdot.org/story/18/07/19/2050244/microsofts-plan-to-try-to-win-back-consumers-with-modern-life-services',
+		'http://feedproxy.google.com/~r/businessinsider/~3/EChmgXESt_4/wells-fargo-close-settlement-end-probes-sales-practices-federal-prosecutors-2020-2-1028927535', // Issue #26 multiple redirects occur when browser user-agent not set
+		'http://www.businesswire.com/news/home/20200213005014/en/ID-Solutions-S.r.l.-Murata-ID-Solutions-S.r.l./?feedref=JjAwJuNHiystnCoBq_hl-fLcmYSZsqlD_XPbplM8Ta6D8R-QU5o2AvY8bhI9uvWSD8DYIYv4TIC1g1u0AKcacnnViVjtb72bOP4-4nHK5iej_DoWrIhfD31cAxcB60aE', // Redirect detection issue
 		'http://feeds.reuters.com/~r/reuters/companyNews/~3/vaJcALwyZeA/mexico-k', // Issue #23 301 redirects to incomplete URL
 		'https://www.bbc.co.uk/news/uk-politics-47379565', // Issue #23 301 redirects to incomplete URL
 		'https://www.fastcompany.com/3067246/innovation-agents/the-unexpected-design-challenge-behind-slacks-new-threaded-conversations',
@@ -36,18 +39,21 @@ class ExtractorTest extends TestCase {
 		// Temporary redirect 307 to terms of service violation which prevents link from resolving
 		'https://www.bloomberg.com/news/articles/2018-07-12/jpmorgan-wells-fargo-may-go-back-to-basics-with-loans-in-focus',
 
-		// Multiple redirects
-		'https://slashdot.org/story/18/07/19/2050244/microsofts-plan-to-try-to-win-back-consumers-with-modern-life-services',
-
+		// Iframes
+		'http://feeds.bizjournals.com/~r/bizj_washington/~3/043koKcU8Zk/walter-reed-project-signs-day-care-preschool.html',
 
 	];
 
 	public function testProblemSites()
 	{
+
+		$testUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36";
+
 		echo "\n";
 
 		foreach($this->problem_sites as $url) {
-			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'));
+//			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'));
+			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent);
 			echo "Testing: " . $url . "\n";
 
 			$result = $parser->processURL($url);

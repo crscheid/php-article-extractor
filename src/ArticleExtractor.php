@@ -19,7 +19,7 @@ use DetectLanguage\DetectLanguage;
 class ArticleExtractor {
 
 	// Debug flag - set to true for convenience during development
-	private $debug = false;
+	private $debug = true;
 
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
@@ -30,8 +30,12 @@ class ArticleExtractor {
 	// API key for the remote detection service
 	private $api_key = null;
 
-	public function __construct($api_key = null) {
+	// User agent to override
+	private $user_agent = null;
+
+	public function __construct($api_key = null, $user_agent = null) {
 		$this->api_key = $api_key;
+		$this->user_agent = $user_agent;
 	}
 
 
@@ -155,7 +159,15 @@ class ArticleExtractor {
     $readability = new Readability(new Configuration(['SummonCthulhu'=>true]));
 
     try {
-      $html = file_get_contents($url);
+			if($this->user_agent != null) {
+				$this->log_debug("Manually setting user agent for file_get_contents to " . $this->user_agent);
+				$context = stream_context_create(array('http' => array('user_agent' => $this->user_agent)));
+				$html = file_get_contents($url, false, $context);
+			}
+			else {
+				$html = file_get_contents($url);
+			}
+
       $readability->parse($html);
       $title = $readability->getTitle();
       $text = $readability->getContent();
@@ -351,12 +363,17 @@ class ArticleExtractor {
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_HEADER, true);
+		curl_setopt($ch, CURLOPT_NOBODY, true);						// exclude the body from the request, we only want the header here
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+
+		// NOTE: We don't set user-agent here because many of the redirect services will use meta refresh instead of location headers to redirect.
+
 		$a = curl_exec($ch);
 
-		if(preg_match('#[Ll]ocation: (.*)#', $a, $r)) {
-			$new_url = trim($r[1]);
+		$new_url = $this->findLocationHeader($a);
+
+		if($new_url != null) {
 			$this->log_debug("Redirect found to: " . $new_url);
 
 			// Check to see if new redirect has scheme and host
@@ -383,6 +400,26 @@ class ArticleExtractor {
 		else {
 			return $url;
 		}
+	}
+
+	/**
+	 * Looks for "Location:" or "location:" in the header. Returns null if it can't find it.
+	 */
+	private function findLocationHeader($text) {
+
+		$lines = explode("\n", $text);
+
+		foreach($lines as $line) {
+
+			$header_item = explode(":", $line);
+
+			if (mb_strtolower($header_item[0]) == "location") {
+				$url = trim(mb_substr($line, mb_strpos($line,":")+1));
+				return $url;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -534,7 +571,7 @@ class ArticleExtractor {
 			return false;
 		}
 
-    	try {
+    try {
 			// Set the API key for detect language library
 			DetectLanguage::setApiKey($this->api_key);
 
@@ -599,7 +636,8 @@ class ArticleExtractor {
 
 	}
 
-	/**
+	/* *
+	 *
 	function translateText($text, $targetLang)
 	{
 		$baseUrl = "https://translate.yandex.net/api/v1.5/tr.json/translate?key=YOUR_yandex_api_key";
