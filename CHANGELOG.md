@@ -1,5 +1,15 @@
 # ChangeLog
 
+## Version 2.1
+
+- Added handling of common Google referral URLs
+- Added 'result_url' to the return structure to inform the caller what the resultant URL was after redirects
+
+
+## Version 2.0.1
+
+- Turned off debugging left on by mistake
+
 ## Version 2.0
 
 - Added ability to manually set User-Agent, fixing many readability issues

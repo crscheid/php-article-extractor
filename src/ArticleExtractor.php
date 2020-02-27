@@ -127,11 +127,15 @@ class ArticleExtractor {
 			}
 		}
 
+		// Show the resultant URL after redirects
+		$results['result_url'] = $url;
+
 		$this->log_debug("text: " . $results['text']);
 		$this->log_debug("title: " . $results['title']);
 		$this->log_debug("language: " . $results['language']);
 		$this->log_debug("parse_method: " . $results['parse_method']);
 		$this->log_debug("language_method: " . $results['language_method']);
+		$this->log_debug("result_url: " . $results['result_url']);
 
     unset($results['html']); // remove raw HTML before returning it
 
@@ -347,6 +351,33 @@ class ArticleExtractor {
 
 	}
 
+	private function checkGoogleReferralUrl($url) {
+
+		$parse_results = parse_url($url);
+
+		if (isset($parse_results['host']) && isset($parse_results['path'])) {
+
+			if (strtolower($parse_results['host']) == "www.google.com" && strtolower($parse_results['path'] = "/url")) {
+
+				if (isset($parse_results['query'])) {
+
+					$items = explode("&", $parse_results['query']);
+
+					foreach($items as $item) {
+						$parts = explode("=", $item);
+						if ($parts[0] == 'url') {
+
+							$url = urldecode($parts[1]);
+						}
+					}
+				}
+			}
+		}
+
+		return $url;
+
+	}
+
 	/**
 	 * Checks for redirects given a URL. Will return the ultimate final URL if found within
 	 * 5 redirects. Otherwise, it will return the last url it found and log too many redirects
@@ -359,6 +390,8 @@ class ArticleExtractor {
 			$this->log_debug("Too many redirects");
 			return $url;
 		}
+
+		$url = $this->checkGoogleReferralUrl($url);
 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);

@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 class ExtractorTest extends TestCase {
 
 	private $problem_sites = [
+		'https://www.google.com/url?rct=j&sa=t&url=https://medium.com/pcmag-access/majority-of-iot-traffic-on-corporate-networks-is-insecure-report-finds-fca274d7409a%3Fsource%3Dtopic_page---------0------------------1&ct=ga&cd=CAIyGjUwNDYzZmZmOTBiY2RhNTM6Y29tOmVuOlVT&usg=AFQjCNHdAURGnK0sMRnSgOckblLTRgxUAQ',
 		'https://slashdot.org/story/18/07/19/2050244/microsofts-plan-to-try-to-win-back-consumers-with-modern-life-services',
 		'http://feedproxy.google.com/~r/businessinsider/~3/EChmgXESt_4/wells-fargo-close-settlement-end-probes-sales-practices-federal-prosecutors-2020-2-1028927535', // Issue #26 multiple redirects occur when browser user-agent not set
 		'http://www.businesswire.com/news/home/20200213005014/en/ID-Solutions-S.r.l.-Murata-ID-Solutions-S.r.l./?feedref=JjAwJuNHiystnCoBq_hl-fLcmYSZsqlD_XPbplM8Ta6D8R-QU5o2AvY8bhI9uvWSD8DYIYv4TIC1g1u0AKcacnnViVjtb72bOP4-4nHK5iej_DoWrIhfD31cAxcB60aE', // Redirect detection issue

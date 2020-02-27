@@ -25,6 +25,8 @@ var_dump($response);
 
 The function `processURL` returns an array containing the title, text, and meta data associated with the request. If the text is `null` then this indicates a failed parsing. Below should be the output of the above code.
 
+The field `result_url` will be different if the library followed redirects. This field represents the final page actually retrieved after redirects.
+
 ```
 array(5) {
   ["parse_method"]=>
@@ -37,6 +39,9 @@ array(5) {
   string(7) "service"
   ["language"]=>
   string(2) "en"
+  ["result_url"]=>
+  string(126) "https://www.fastcompany.com/3067246/innovation-agents/the-unexpected-design-challenge-behind-slacks-new-threaded-conversations"
+
 }
 ```
 
