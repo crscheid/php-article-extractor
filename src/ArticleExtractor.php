@@ -82,6 +82,9 @@ class ArticleExtractor {
       $results = $this->parseViaGooseOrCustom($url);
     }
 
+		// Add the resultant URL after redirects
+		$results['result_url'] = $url;
+
     // If we still don't havewhat we want, return what we have
     if ($results['text'] == null) {
       $results['language'] = null;
@@ -126,9 +129,6 @@ class ArticleExtractor {
 	      $results['language'] = null;
 			}
 		}
-
-		// Show the resultant URL after redirects
-		$results['result_url'] = $url;
 
 		$this->log_debug("text: " . $results['text']);
 		$this->log_debug("title: " . $results['title']);
