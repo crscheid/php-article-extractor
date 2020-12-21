@@ -79,6 +79,16 @@ $myUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.
 $extractor = new ArticleExtractor(null, $myUserAgent);
 ```
 
+### Force Reading Method
+
+It is possible to force the method by which the reading is attempted, either with Readability, Goose, or Goose with our custom processing. This can come in handy where Readability or Goose have particular issues with particular websites.
+
+To force the method, simply provide a third argument to the constructor as such. The four valid methods are `readability`, `goose`, `goosecustom`, or `custom`.
+
+```php
+$extractor = new ArticleExtractor(null, null, "goose");
+```
+
 
 ## Output Format
 

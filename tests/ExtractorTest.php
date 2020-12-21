@@ -10,7 +10,6 @@ class ExtractorTest extends TestCase {
 		'https://slashdot.org/story/18/07/19/2050244/microsofts-plan-to-try-to-win-back-consumers-with-modern-life-services',
 		'http://feedproxy.google.com/~r/businessinsider/~3/EChmgXESt_4/wells-fargo-close-settlement-end-probes-sales-practices-federal-prosecutors-2020-2-1028927535', // Issue #26 multiple redirects occur when browser user-agent not set
 		'http://www.businesswire.com/news/home/20200213005014/en/ID-Solutions-S.r.l.-Murata-ID-Solutions-S.r.l./?feedref=JjAwJuNHiystnCoBq_hl-fLcmYSZsqlD_XPbplM8Ta6D8R-QU5o2AvY8bhI9uvWSD8DYIYv4TIC1g1u0AKcacnnViVjtb72bOP4-4nHK5iej_DoWrIhfD31cAxcB60aE', // Redirect detection issue
-		'http://feeds.reuters.com/~r/reuters/companyNews/~3/vaJcALwyZeA/mexico-k', // Issue #23 301 redirects to incomplete URL
 		'https://www.bbc.co.uk/news/uk-politics-47379565', // Issue #23 301 redirects to incomplete URL
 		'https://www.fastcompany.com/3067246/innovation-agents/the-unexpected-design-challenge-behind-slacks-new-threaded-conversations',
 		'http://www.mckinsey.com/industries/financial-services/our-insights/engaging-customers-the-evolution-of-asia-pacific-digital-banking?cid=other-eml-alt-mip-mck-oth-1701',
@@ -29,6 +28,11 @@ class ExtractorTest extends TestCase {
 		'http://gizmodo.com/how-to-survive-the-next-catastrophic-pandemic-1793487027?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
 	];
 
+	private $overrides = [
+		'https://finance.yahoo.com/news/coronavirus-stimulus-deal-broadband-internet-provisions-204533636.html',
+		'https://finance.yahoo.com/news/scaramucci-skybridge-launching-bitcoin-fund-172809016.html',
+	];
+
 	private $known_problems = [
 
 		// React problem #5 (https://github.com/crscheid/php-article-extractor/issues/5)
@@ -45,6 +49,25 @@ class ExtractorTest extends TestCase {
 
 	];
 
+	public function testOverrides()
+	{
+		$testUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.116 Safari/537.36";
+
+		echo "\n";
+
+		foreach($this->overrides as $url) {
+			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent, "goosecustom");
+			echo "Testing: " . $url . "\n";
+
+			$result = $parser->processURL($url);
+			$this->assertNotEmpty($result['title']);
+			$this->assertNotEmpty($result['text']);
+			$this->assertNotEmpty($result['language']);
+			$this->assertNotEmpty($result['parse_method']);
+			$this->assertNotEmpty($result['language_method']);
+		}
+	}
+
 	public function testProblemSites()
 	{
 
@@ -53,7 +76,6 @@ class ExtractorTest extends TestCase {
 		echo "\n";
 
 		foreach($this->problem_sites as $url) {
-//			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'));
 			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent);
 			echo "Testing: " . $url . "\n";
 

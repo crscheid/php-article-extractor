@@ -1,10 +1,14 @@
 # ChangeLog
 
+
+## Version 2.2
+
+- Added ability to override/force the reading method.
+
 ## Version 2.1
 
 - Added handling of common Google referral URLs
 - Added 'result_url' to the return structure to inform the caller what the resultant URL was after redirects
-
 
 ## Version 2.0.1
 
