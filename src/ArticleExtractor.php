@@ -19,7 +19,7 @@ use DetectLanguage\DetectLanguage;
 class ArticleExtractor {
 
 	// Debug flag - set to true for convenience during development
-	private $debug = true;
+	private $debug = false;
 
 	// Valid root elements we want to search for
 	private $valid_root_elements = [ 'body', 'form', 'main', 'div', 'ul', 'li', 'table', 'span', 'section', 'article', 'main'];
