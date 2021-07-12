@@ -1,5 +1,10 @@
 # ChangeLog
 
+## Version 2.4
+
+- Reinstates [paquettg/php-html-parser](https://github.com/paquettg/php-html-parser) as the preferred DOM parser.
+  - Note that this updates many composer dependencies so releasing this as a separate release just in case.
+
 ## Version 2.3
 
 - Added ability to pass in HTML and process via the `processHTML` method

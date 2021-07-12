@@ -11,8 +11,9 @@ use andreskrey\Readability\Configuration;
 use andreskrey\Readability\ParseException;
 
 use PHPHtmlParser\Dom;
-use PHPHtmlParser\Dom\HtmlNode;
-use PHPHtmlParser\Dom\TextNode;
+use PHPHtmlParser\Options;
+use PHPHtmlParser\Dom\Node\HtmlNode;
+use PHPHtmlParser\Dom\Node\TextNode;
 
 use DetectLanguage\DetectLanguage;
 
@@ -536,7 +537,7 @@ class ArticleExtractor {
 
     // Ok then try it a different way
     $dom = new Dom;
-    $dom->load($html, ['whitespaceTextNode' => false]);
+    $dom->loadStr($html, (new Options())->setWhitespaceTextNode(false));
 
     // First, just completely remove the items we don't even care about
     $nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
@@ -906,7 +907,7 @@ class ArticleExtractor {
     try {
       // Ok then try it a different way
   		$dom = new Dom;
-  		$dom->load($html_string, ['whitespaceTextNode' => false]);
+  		$dom->loadStr($html_string, (new Options())->setWhitespaceTextNode(false));
 
   		$htmltag = $dom->find('html');
   		$lang = $htmltag->getAttribute('lang');
