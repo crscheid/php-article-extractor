@@ -1,5 +1,10 @@
 # ChangeLog
 
+## Version 2.3
+
+- Added ability to pass in HTML and process via the `processHTML` method
+- Revised documentation with updates and fixes
+- Updated test cases
 
 ## Version 2.2
 

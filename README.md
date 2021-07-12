@@ -12,7 +12,9 @@ This library is distributed via packagist.org, so you can use composer to retrie
 composer require crscheid/php-article-extractor
 ```
 
-Then you need simply to create an ArticleExtractor class and call the `parseURL` function on it, passing in the URL desired.
+### Calling via URL
+
+This library will attempt to retrieve the HTML for you. You need simply to create an ArticleExtractor class and call the `parseURL` function on it, passing in the URL desired.
 
 ```php
 use Cscheide\ArticleExtractor\ArticleExtractor;
@@ -44,6 +46,40 @@ array(5) {
 
 }
 ```
+
+### Calling with HTML
+
+If you already have HTML, you can use the `parseHTML` function and use your HTML processed through the same logic.
+
+```php
+use Cscheide\ArticleExtractor\ArticleExtractor;
+
+$extractor = new ArticleExtractor();
+$myHTML = <load from some source>;
+
+$response = $extractor->processHTML($myHTML);
+var_dump($response);
+```
+
+The function `parseHTML` returns an array containing the title, text, and meta data associated with the request. If the text is `null` then this indicates a failed parsing. Below should be the output of the above code.
+
+The field `result_url` will not be included in this case since we are not attempting to get the HTML during the process call.
+
+```
+array(5) {
+  ["parse_method"]=>
+  string(11) "readability"
+  ["title"]=>
+  string(72) "The Unexpected Design Challenge Behind Slack’s New Threaded Conversations"
+  ["text"]=>
+  string(8013) "At first blush, threaded conversations sound like one of the most thoroughly mundane features a messaging app could introduce.After all, the idea of neatly bundling up a specific message and its replies in ..."
+  ["language_method"]=>
+  string(7) "service"
+  ["language"]=>
+  string(2) "en"
+}
+```
+
 
 You can also create the `ArticleExtractor` class by passing in a key for the language detection service as well as a custom User-Agent string. See more information below.
 
@@ -108,12 +144,27 @@ What Microsoft customer records were exposed online, and where did they come fro
 ```
 
 
+
+
 ## Running tests
 
-Unit tests are included in this distribution and can be run utilizing PHPUnit
+Unit tests are included in this distribution and can be run utilizing PHPUnit after installing dependencies. The recommended approach is to use Docker for this purpose, so you then don't even need to have dependencies installed on your system.
+
+> Note: Please set the environment variable `DETECT_LANGUAGE_KEY` with your [Detect Language](http://detectlanguage.com/) key in order for language detection in unit tests to work properly.
+
+
+### Installing Dependencies
+
+This will use the composer docker image to download the requirements. Note the use of the `--ignore-platform-reqs` since some of our dependencies do not yet support PHP 8.
 
 ```
-./vendor/phpunit/phpunit/phpunit
+ docker run --rm --interactive --tty --volume $PWD:/app composer --ignore-platform-reqs install
 ```
 
-> Note: Please set the environment variable `DETECT_LANGUAGE_KEY` with your [Detect Language](http://detectlanguage.com/) key in order for language detection to work properly.
+### Running Unit Tests
+
+This runs the phpunit dependency that we downloaded within the php 7.4 command line environment.
+
+```
+docker run -v $(pwd):/app -w /app -e DETECT_LANGUAGE_KEY=<yourapikey> --rm php:7.4-cli ./vendor/phpunit/phpunit/phpunit
+```

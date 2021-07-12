@@ -28,6 +28,10 @@ class ExtractorTest extends TestCase {
 		'http://gizmodo.com/how-to-survive-the-next-catastrophic-pandemic-1793487027?utm_source=pocket&utm_medium=email&utm_campaign=pockethits',
 	];
 
+	private $html_files = [
+		'tests/html_test_cnbc.html'
+	];
+
 	private $overrides = [
 		'https://finance.yahoo.com/news/coronavirus-stimulus-deal-broadband-internet-provisions-204533636.html',
 		'https://finance.yahoo.com/news/scaramucci-skybridge-launching-bitcoin-fund-172809016.html',
@@ -57,7 +61,7 @@ class ExtractorTest extends TestCase {
 
 		foreach($this->overrides as $url) {
 			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent, "goosecustom");
-			echo "Testing: " . $url . "\n";
+			echo "Testing Overrides: " . $url . "\n";
 
 			$result = $parser->processURL($url);
 			$this->assertNotEmpty($result['title']);
@@ -77,7 +81,7 @@ class ExtractorTest extends TestCase {
 
 		foreach($this->problem_sites as $url) {
 			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent);
-			echo "Testing: " . $url . "\n";
+			echo "Testing Sites: " . $url . "\n";
 
 			$result = $parser->processURL($url);
 			$this->assertNotEmpty($result['title']);
@@ -87,6 +91,27 @@ class ExtractorTest extends TestCase {
 			$this->assertNotEmpty($result['language_method']);
 		}
 	}
+
+	public function testHTML() {
+
+		echo "\n";
+
+		foreach($this->html_files as $file) {
+
+			echo "Testing HTML: " . $file . "\n";
+			$html = file_get_contents($file);
+
+			$parser = new ArticleExtractor(getenv('DETECT_LANGUAGE_KEY'), $testUserAgent);
+			$result = $parser->processHTML($html);
+			$this->assertNotEmpty($result['title']);
+			$this->assertNotEmpty($result['text']);
+			$this->assertNotEmpty($result['language']);
+			$this->assertNotEmpty($result['parse_method']);
+			$this->assertNotEmpty($result['language_method']);
+		}
+
+	}
+
 
 
 }

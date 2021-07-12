@@ -36,6 +36,9 @@ class ArticleExtractor {
 	// Method to force
 	private $force_method = null;
 
+	/**
+	 * Constructor provides API key, user_agent, and the force method if required.
+	 */
 	public function __construct($api_key = null, $user_agent = null, $force_method = null) {
 		$this->api_key = $api_key;
 		$this->user_agent = $user_agent;
@@ -56,10 +59,10 @@ class ArticleExtractor {
     return $this->processURL($url);
   }
 
-	/**
-	 * The only public function for this class. processURL returns the best guess
-   * of the human readable part of a URL, as well as additional meta data
-   * associated with the parsing.
+  /**
+   *
+   * This function returns the best guess of the human readable part of HTML that
+   * is passed in as well as additional meta data associated with the parsing.
 	 *
 	 * Returns an array with the following information:
 	 *
@@ -71,10 +74,71 @@ class ArticleExtractor {
 	 *	  language_method => (the way the language was detected)
 	 * ]
    *
+   */
+  public function processHTML($html) {
+
+    // If we don't have a force method enabled, then simply run them in the following order
+		if ($this->force_method == null) {
+
+			// First try with readability
+			$results = $this->parseHTMLViaReadability($html);
+
+			// If we don't see what we want, try our other method
+	    if ($results['text'] == null) {
+	      $results = $this->parseHTMLViaGoose($html);
+	    }
+
+			// If we still don't have text, then try our custom method passing in the results from the prior Goose Call
+			if ($results['text'] == null) {
+	      $results = $this->parseHTMLViaCustom($html, $results);
+	    }
+		}
+		// Otherwise, run them specifically in this order
+		else {
+			switch($this->force_method) {
+				case 'readability':
+				  $results = $this->parseHTMLViaReadability($html);
+					break;
+				case 'goose':
+					$results = $this->parseHTMLViaGoose($html);
+					break;
+				case 'goosecustom':
+					$results = $this->parseHTMLViaGoose($html);
+					if ($results['text'] == null) {
+			      $results = $this->parseHTMLViaCustom($html, $results);
+			    }
+					break;
+				case 'custom':
+					$results = $this->parseHTMLViaCustom($html);
+					break;
+			}
+		}
+
+		// Perform the post processing cleanup
+    return $this->performHTMLPostProcessing($results);
+
+  }
+
+	/**
+	 * This function returns the best guess of the human readable part of a URL,
+   * as well as additional meta data associated with the parsing.
+	 *
+	 * Returns an array with the following information:
+	 *
+	 * [
+	 *	  title => (the title of the article)
+	 *	  text => (the human readable piece of the article)
+	 *	  parse_method => (the internal processing method used to parse the article, "goose", "custom", "readability"
+	 *	  language => (the ISO 639-1 code detected for the language)
+	 *	  language_method => (the way the language was detected)
+   *    result_url => (the resultant URL after all appropriate redirects have occurred)
+	 * ]
+   *
    * This processing will attempt to use the following methods in this order:
    *   1. Readability
    *   2. Goose
    *   3. Goose with some additional custom processing
+   *   4. Custom methodology
    *
 	 */
 	public function processURL($url) {
@@ -88,42 +152,55 @@ class ArticleExtractor {
 		if ($this->force_method == null) {
 
 			// First try with readability
-			$results = $this->parseViaReadability($url);
+			$results = $this->parseURLViaReadability($url);
 
 			// If we don't see what we want, try our other method
 	    if ($results['text'] == null) {
-	      $results = $this->parseViaGoose($url);
+	      $results = $this->parseURLViaGoose($url);
 	    }
 
 			// If we still don't have text, then try our custom method passing in the results from the prior Goose Call
 			if ($results['text'] == null) {
-	      $results = $this->parseViaCustom($url, $results);
+	      $results = $this->parseURLViaCustom($url, $results);
 	    }
+
 		}
-		// Otherwise, run them specifically
+		// Otherwise, run them specifically in this order
 		else {
 			switch($this->force_method) {
 				case 'readability':
-				  $results = $this->parseViaReadability($url);
+				  $results = $this->parseURLViaReadability($url);
 					break;
 				case 'goose':
-					$results = $this->parseViaGoose($url);
+					$results = $this->parseURLViaGoose($url);
 					break;
 				case 'goosecustom':
-					$results = $this->parseViaGoose($url);
+					$results = $this->parseURLViaGoose($url);
 					if ($results['text'] == null) {
-			      $results = $this->parseViaCustom($url, $results);
+			      $results = $this->parseURLViaCustom($url, $results);
 			    }
 					break;
 				case 'custom':
-					$results = $this->parseViaCustom($url);
+					$results = $this->parseURLViaCustom($url);
 					break;
 			}
 		}
 
-
 		// Add the resultant URL after redirects
 		$results['result_url'] = $url;
+
+		// Perform the post processing cleanup
+    return $this->performHTMLPostProcessing($results);
+
+  }
+
+  /**
+   * Performs post processing functions on the result array after the HTML is
+   * either retrieved and processed.
+   */
+  private function performHTMLPostProcessing($results) {
+
+    // POST PROCESSING
 
     // If we still don't havewhat we want, return what we have
     if ($results['text'] == null) {
@@ -139,13 +216,13 @@ class ArticleExtractor {
 		if ($lang_detect = $this->checkHTMLForLanguageHint($results['html'])) {
 			$results['language_method'] = "html";
 			$results['language'] = $lang_detect;
-			$this->log_debug("Language was detected as " . $results['language'] . " from HTML");
+			$this->log_debug("performHTMLPostProcessing: Language was detected as " . $results['language'] . " from HTML");
 		}
 
-		$this->log_debug("--------- PRE UTF 8 CLEANING -------------------------------------");
-		$this->log_debug("title: " . $results['title']);
-		$this->log_debug("text: " . $results['text']);
-		$this->log_debug("------------------------------------------------------------------");
+		$this->log_debug("performHTMLPostProcessing: --------- PRE UTF 8 CLEANING -------------------------------------");
+		$this->log_debug("performHTMLPostProcessing: title: " . $results['title']);
+		$this->log_debug("performHTMLPostProcessing: text: " . $results['text']);
+		$this->log_debug("performHTMLPostProcessing: ------------------------------------------------------------------");
 
 		// Convert items to UTF-8
 		$results['title'] = $this->shiftEncodingToUTF8($results['title']);
@@ -160,22 +237,25 @@ class ArticleExtractor {
 	      // Then use the service to detect the language
 				$results['language_method'] = "service";
 				$results['language'] = $this->identifyLanguage(mb_substr($results['text'],0,100));
-				$this->log_debug("Language was detected as  " . $results['language'] . " from service");
+				$this->log_debug("performHTMLPostProcessing: Language was detected as  " . $results['language'] . " from service");
 			}
 			// Otherwise skip
 			else {
-				$this->log_debug("Skipping remote language detection service check");
+				$this->log_debug("performHTMLPostProcessing: Skipping remote language detection service check");
 	      $results['language_method'] = null;
 	      $results['language'] = null;
 			}
 		}
 
-		$this->log_debug("text: " . $results['text']);
-		$this->log_debug("title: " . $results['title']);
-		$this->log_debug("language: " . $results['language']);
-		$this->log_debug("parse_method: " . $results['parse_method']);
-		$this->log_debug("language_method: " . $results['language_method']);
-		$this->log_debug("result_url: " . $results['result_url']);
+		$this->log_debug("performHTMLPostProcessing: text: " . $results['text']);
+		$this->log_debug("performHTMLPostProcessing: title: " . $results['title']);
+		$this->log_debug("performHTMLPostProcessing: language: " . $results['language']);
+		$this->log_debug("performHTMLPostProcessing: parse_method: " . $results['parse_method']);
+		$this->log_debug("performHTMLPostProcessing: language_method: " . $results['language_method']);
+
+		if (array_key_exists('result_url', $results)) {
+			$this->log_debug("performHTMLPostProcessing: result_url: " . $results['result_url']);
+		}
 
     unset($results['html']); // remove raw HTML before returning it
 
@@ -184,7 +264,7 @@ class ArticleExtractor {
   }
 
   /**
-	 * Attempts to parse via the Readability libary aReturns the following array.
+	 * Attempts to parse via the Readability libary and returns the following array.
    * [
    *    'method' => "readability"
    *    'title' => <the title of the article>
@@ -194,13 +274,11 @@ class ArticleExtractor {
    *
    * Parsing can be considered unavailable if 'text' is returned as null
 	 */
-  private function parseViaReadability($url) {
+  private function parseURLViaReadability($url) {
 
     $text = null;
     $title = null;
 		$method = "readability";
-
-    $readability = new Readability(new Configuration(['SummonCthulhu'=>true]));
 
     try {
 			if($this->user_agent != null) {
@@ -211,6 +289,37 @@ class ArticleExtractor {
 			else {
 				$html = file_get_contents($url);
 			}
+      return $this->parseHTMLViaReadability($html);
+
+    }
+    catch (\Exception $e) {
+      $this->log_debug('parseURLViaReadability: Error processing text', $e->getMessage());
+    }
+
+    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+
+  }
+
+  /**
+	 * Attempts to parse HTML via the Readability libary and returns the following array.
+   * [
+   *    'method' => "readability"
+   *    'title' => <the title of the article>
+   *    'text' => <the cleaned text of the article> | null
+   *    'html' => <the raw HTML of the article>
+   * ]
+   *
+   * Parsing can be considered unavailable if 'text' is returned as null
+	 */
+  private function parseHTMLViaReadability($html) {
+
+    $text = null;
+    $title = null;
+		$method = "readability";
+
+    $readability = new Readability(new Configuration(['SummonCthulhu'=>true]));
+
+    try {
 
       $readability->parse($html);
       $title = $readability->getTitle();
@@ -233,12 +342,13 @@ class ArticleExtractor {
 
     }
     catch (ParseException $e) {
-      $this->log_debug('parseViaReadability: Error processing text', $e->getMessage());
+      $this->log_debug('parseHTMLViaReadability: Error processing text', $e->getMessage());
     }
 
     return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
 
   }
+
 
 	/**
 	 * Attempts to parse via the Goose libary Returns the following array.
@@ -251,7 +361,7 @@ class ArticleExtractor {
    *
    * Parsing can be considered unavailable if 'text' is returned as null
 	 */
-  private function parseViaGoose($url) {
+  private function parseURLViaGoose($url) {
 
     $text = null;
 		$method = "goose";
@@ -272,7 +382,7 @@ class ArticleExtractor {
 
     }
     catch (\Exception $e) {
-      $this->log_debug('parseViaGoose: Unable to request url ' . $url . " due to " . $e->getMessage());
+      $this->log_debug('parseURLViaGoose: Unable to request url ' . $url . " due to " . $e->getMessage());
     }
 
     return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
@@ -280,7 +390,45 @@ class ArticleExtractor {
 
 
   /**
-	 * Attempts to parse via the Goose libary and our custom processing. Returns the
+	 * Attempts to parse via the Goose libary with raw html available to it.
+   * [
+   *    'method' => "goose" | null
+   *    'title' => <the title of the article>
+   *    'text' => <the cleaned text of the article> | null
+   *    'html' => <the raw HTML of the article>
+   * ]
+   *
+   * Parsing can be considered unavailable if 'text' is returned as null
+	 */
+  private function parseHTMLViaGoose($html) {
+
+    $text = null;
+		$method = "goose";
+    $title = null;
+
+    $this->log_debug("Parsing via: goose method");
+
+		// Try to get the article using Goose first
+		$goose = new GooseClient(['image_fetch_best' => false]);
+
+    try {
+      $article = $goose->extractContent('http://nowhere.com', $html); // pass in the HTML instead
+      $title = $article->getTitle();
+			$text = $article->getCleanedArticleText();
+			// If Goose failed, $text will be null here
+
+    }
+    catch (\Exception $e) {
+      $this->log_debug('parseHTMLViaGoose: Unable to process HTML due to ' . $e->getMessage());
+    }
+
+    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+	}
+
+
+
+  /**
+	 * Attempts to parse HTML via the Goose libary and our custom processing. Returns the
    * following array.
    * [
    *    'method' => "custom"
@@ -291,136 +439,190 @@ class ArticleExtractor {
    *
    * Parsing can be considered unavailable if 'text' is returned as null
 	 */
-  private function parseViaCustom($url, $priorResults = null) {
-
-		$method = "custom";
+  private function parseHTMLViaCustom($html, $priorResults = null) {
+    $method = "custom";
 		$text = null;
 
-    $this->log_debug("Parsing via: custom method");
+    $this->log_debug("parseHTMLViaCustom: Parsing HTML via custom method");
 
     try {
 
 			if($priorResults == null) {
 				// Try to get the title and HTML text from Goose first
-				$this->log_debug("Downloading HTML via Goose");
+				$this->log_debug("parseHTMLViaCustom: Processing HTML via Goose");
+				$goose = new GooseClient(['image_fetch_best' => false]);
+				$article = $goose->extractContent('http://nowhere.com', $html);
+				$title = $article->getTitle();
+			}
+			else {
+				$this->log_debug("parseHTMLViaCustom: Using prior HTML and title from Goose");
+				$title = $priorResults['title'];
+			}
+
+			// Run the custom post processing to get the text
+			$text = $this->performCustomPostProcessing($html);
+
+    }
+		catch (\Exception $e) {
+      $this->log_debug('parseHTMLViaCustom: Unable to process HTML due to ' . $e->getMessage());
+    }
+
+    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+
+  }
+
+  /**
+	 * Attempts to parse a URL via the Goose libary and our custom processing. Returns the
+   * following array.
+   * [
+   *    'method' => "custom"
+   *    'title' => <the title of the article>
+   *    'text' => <the cleaned text of the article> | null
+   *    'html' => <the raw HTML of the article>
+   * ]
+   *
+   * Parsing can be considered unavailable if 'text' is returned as null
+	 */
+  private function parseURLViaCustom($url, $priorResults = null) {
+
+		$method = "custom";
+		$text = null;
+
+    $this->log_debug("parseURLViaCustom: Parsing URL via custom method");
+
+    try {
+
+			if($priorResults == null) {
+				// Try to get the title and HTML text from Goose first
+				$this->log_debug("parseURLViaCustom: Downloading HTML via Goose");
 				$goose = new GooseClient(['image_fetch_best' => false]);
 				$article = $goose->extractContent($url);
 	      $title = $article->getTitle();
 	      $html = $article->getRawHtml();
 			}
 			else {
-				$this->log_debug("Using prior HTML and title from Goose");
+				$this->log_debug("parseURLViaCustom: Using prior HTML and title from Goose");
 				$title = $priorResults['title'];
 				$html = $priorResults['html'];
 			}
 
-			//$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
-			//$this->log_debug($html);
-			//$this->log_debug("-------------------------------------------------------------------------------------------------");
+			// Run the custom post processing to get the text
+			$text = $this->performCustomPostProcessing($html);
 
-			// Ok then try it a different way
-			$dom = new Dom;
-			$dom->load($html, ['whitespaceTextNode' => false]);
-
-			// First, just completely remove the items we don't even care about
-			$nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
-
-			foreach($nodesToRemove as $node) {
-				$node->delete();
-				unset($node);
-			}
-
-			// Records to store information on the best dom element found thusfar
-			$best_element = null;
-			$best_element_wc = 0;
-			$best_element_wc_ratio = -1;
-
-      // $html = $dom->outerHtml;
-
-			// Get a list of qualifying nodes we want to evaluate as the top node for content
-			$candidateNodes = $this->buildAllNodeList($dom->root);
-			$this->log_debug("Candidate node count: " . count($candidateNodes));
-
-			// Find a target best element
-			foreach($candidateNodes as $node) {
-
-				// Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
-				$this_element_wc = str_word_count($node->text(true));
-				$this_element_whitecount = substr_count($node->text(true), ' ');
-				$this_element_wc_ratio = -1;
-
-				// If the wordcount is not zero, then calculation the wc ratio, otherwise set it to -1
-				$this_element_wc_ratio = ($this_element_wc == 0) ? -1 : $this_element_whitecount / $this_element_wc;
-
-				// Calculate the word count contribution for all children elements
-				$children_wc = 0;
-				$children_num = 0;
-				foreach($node->getChildren() as $child) {
-					if (in_array($child->tag->name(),$this->valid_root_elements)) {
-						$children_num++;
-						$children_wc += str_word_count($child->text(true));
-					}
-				}
-
-				// This is the contribution for this particular element not including the children types above
-				$this_element_wc_contribution = $this_element_wc - $children_wc;
-
-				// Debug information on this element for development purposes
-				$this->log_debug("Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $this_element_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_element_wc . "\tBest Ratio:\t" . number_format($best_element_wc_ratio,2) . " " . $node->getAttribute('class'));
-
-				// Now check to see if this element appears better than any previous one
-
-				// We do this by first checking to see if this element's WC contribution is greater than the previous
-				if	($this_element_wc_contribution > $best_element_wc) {
-
-					// If we so we then calculate the improvement ratio from the prior best and avoid division by 0
-					$wc_improvement_ratio = ($best_element_wc == 0) ? 100 : $this_element_wc_contribution / $best_element_wc;
-
-					// There are three conditions in which this candidate should be chosen
-					//		1. The previous best is zero
-					//		2. The new best is more than 10% greater WC contribution than the prior best
-					//		3. The new element wc ratio is less than the existing best element's ratio
-
-					if ( $best_element_wc == 0 || $wc_improvement_ratio	 >= 1.10 || $this_element_wc_ratio <= $best_element_wc_ratio) {
-						$best_element_wc = $this_element_wc_contribution;
-						$best_element_wc_ratio = $this_element_wc_ratio;
-						$best_element = $node;
-						$this->log_debug("\t *** New best element ***");
-					}
-				}
-			}
-
-			// If we have a candidate element
-			if ($best_element) {
-
-				// Now we need to do some sort of peer analysis
-				$best_element = $this->peerAnalysis($best_element);
-
-        /*
-				// Add space before HTML elements that if removed create concatenation issues (e.g. <p>, <li>)
-				$nodesToEditText = $best_element->find('p, li');
-
-				foreach($nodesToEditText as $node) {
-					$node->setText(" " . $node->text);
-				}
-
-        */
-				//
-				// Decode the text
-        //$text = html_entity_decode($best_element->text(true));
-				$text = html_entity_decode($this->getTextForNode($best_element));
-
-			}
     }
     catch (\Exception $e) {
-      $this->log_debug('parseViaGoose: Unable to request url ' . $url . " due to " . $e->getMessage());
+      $this->log_debug('parseURLViaCustom: Unable to request url ' . $url . " due to " . $e->getMessage());
     }
 
     return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
 
 	}
 
-	private function checkGoogleReferralUrl($url) {
+
+  /**
+   * This function handles the html and uses our custom processing to process
+   * into regular text.
+   *
+   * Returns the cleaned text.
+   */
+  private function performCustomPostProcessing($html) {
+
+    // Variable to hold our resultant text
+    $text = null;
+
+    //$this->log_debug("---- RAW HTML -----------------------------------------------------------------------------------");
+    //$this->log_debug($html);
+    //$this->log_debug("-------------------------------------------------------------------------------------------------");
+
+    // Ok then try it a different way
+    $dom = new Dom;
+    $dom->load($html, ['whitespaceTextNode' => false]);
+
+    // First, just completely remove the items we don't even care about
+    $nodesToRemove = $dom->find('script, style, header, footer, input, button, aside, meta, link');
+
+    foreach($nodesToRemove as $node) {
+      $node->delete();
+      unset($node);
+    }
+
+    // Records to store information on the best dom element found thusfar
+    $best_element = null;
+    $best_element_wc = 0;
+    $best_element_wc_ratio = -1;
+
+    // $html = $dom->outerHtml;
+
+    // Get a list of qualifying nodes we want to evaluate as the top node for content
+    $candidateNodes = $this->buildAllNodeList($dom->root);
+    $this->log_debug("performCustomPostProcessing: Candidate node count: " . count($candidateNodes));
+
+    // Find a target best element
+    foreach($candidateNodes as $node) {
+
+      // Calculate the wordcount, whitecount, and wordcount ratio for the text within this element
+      $this_element_wc = str_word_count($node->text(true));
+      $this_element_whitecount = substr_count($node->text(true), ' ');
+      $this_element_wc_ratio = -1;
+
+      // If the wordcount is not zero, then calculation the wc ratio, otherwise set it to -1
+      $this_element_wc_ratio = ($this_element_wc == 0) ? -1 : $this_element_whitecount / $this_element_wc;
+
+      // Calculate the word count contribution for all children elements
+      $children_wc = 0;
+      $children_num = 0;
+      foreach($node->getChildren() as $child) {
+        if (in_array($child->tag->name(),$this->valid_root_elements)) {
+          $children_num++;
+          $children_wc += str_word_count($child->text(true));
+        }
+      }
+
+      // This is the contribution for this particular element not including the children types above
+      $this_element_wc_contribution = $this_element_wc - $children_wc;
+
+      // Debug information on this element for development purposes
+      $this->log_debug("performCustomPostProcessing: Element:\t". $node->tag->name() . "\tTotal WC:\t" . $this_element_wc . "\tTotal White:\t" . $this_element_whitecount . "\tRatio:\t" . number_format($this_element_wc_ratio,2) . "\tElement WC:\t" . $this_element_wc_contribution . "\tChildren WC:\t" . $children_wc . "\tChild Contributors:\t" . $children_num . "\tBest WC:\t" . $best_element_wc . "\tBest Ratio:\t" . number_format($best_element_wc_ratio,2) . " " . $node->getAttribute('class'));
+
+      // Now check to see if this element appears better than any previous one
+
+      // We do this by first checking to see if this element's WC contribution is greater than the previous
+      if	($this_element_wc_contribution > $best_element_wc) {
+
+        // If we so we then calculate the improvement ratio from the prior best and avoid division by 0
+        $wc_improvement_ratio = ($best_element_wc == 0) ? 100 : $this_element_wc_contribution / $best_element_wc;
+
+        // There are three conditions in which this candidate should be chosen
+        //		1. The previous best is zero
+        //		2. The new best is more than 10% greater WC contribution than the prior best
+        //		3. The new element wc ratio is less than the existing best element's ratio
+
+        if ( $best_element_wc == 0 || $wc_improvement_ratio	 >= 1.10 || $this_element_wc_ratio <= $best_element_wc_ratio) {
+          $best_element_wc = $this_element_wc_contribution;
+          $best_element_wc_ratio = $this_element_wc_ratio;
+          $best_element = $node;
+          $this->log_debug("performCustomPostProcessing: \t *** New best element ***");
+        }
+      }
+    }
+
+    // If we have a candidate element
+    if ($best_element) {
+
+      // Now we need to do some sort of peer analysis
+      $best_element = $this->peerAnalysis($best_element);
+
+      // Decode the text
+      $text = html_entity_decode($this->getTextForNode($best_element));
+    }
+
+    // Return the text field
+    return $text;
+  }
+
+
+
+  private function checkGoogleReferralUrl($url) {
 
 		$parse_results = parse_url($url);
 
