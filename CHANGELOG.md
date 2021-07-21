@@ -1,5 +1,15 @@
 # ChangeLog
 
+## Version 2.3.2
+
+- Updated CHANGELOG
+
+
+## Version 2.3.1
+
+- Fixed small issue in ArticleExtractor where $html variable was not defined.
+
+
 ## Version 2.4
 
 - Reinstates [paquettg/php-html-parser](https://github.com/paquettg/php-html-parser) as the preferred DOM parser.
