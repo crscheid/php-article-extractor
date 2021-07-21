@@ -280,6 +280,7 @@ class ArticleExtractor {
     $text = null;
     $title = null;
 		$method = "readability";
+		$html = null;
 
     try {
 			if($this->user_agent != null) {
