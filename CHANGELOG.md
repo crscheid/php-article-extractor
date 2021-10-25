@@ -1,5 +1,15 @@
 # ChangeLog
 
+
+## Version 2.5.1
+
+- Migrates `andreskrey/readability.php` to [fivefilters/readability.php](https://packagist.org/packages/fivefilters/readability.php)
+
+
+## Version 2.5
+
+- Fixes missing $html bug in ArticleExtractor.
+
 ## Version 2.3
 
 - Added ability to pass in HTML and process via the `processHTML` method

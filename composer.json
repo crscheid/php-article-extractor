@@ -14,7 +14,7 @@
 	    "scotteh/php-goose": "dev-master",
       "thesoftwarefanatics/php-html-parser": "^1.8.0",
       "detectlanguage/detectlanguage": "2.*",
-      "andreskrey/readability.php": "^2.1.0"
+      "fivefilters/readability.php": "^2.1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^8.0"
