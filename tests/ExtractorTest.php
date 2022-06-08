@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 class ExtractorTest extends TestCase {
 
 	private $problem_sites = [
+		'https://www.businesswire.com/news/home/20220607006074/en',
 		'https://news.google.com/__i/rss/rd/articles/CBMihgFodHRwczovL29oaW9jYXBpdGFsam91cm5hbC5jb20vMjAyMS8wNy8yMS9zdHVkeS1jZW50cmFsLW9oaW8taG91c2luZy1zdGFiaWxpemF0aW9uLXByb2plY3QtaW1wcm92ZWQtaGVhbHRoLW91dGNvbWVzLWZvci13b21lbi1pbmZhbnRzL9IBAA?oc=5',
 		'https://www.google.com/url?rct=j&sa=t&url=https://medium.com/pcmag-access/majority-of-iot-traffic-on-corporate-networks-is-insecure-report-finds-fca274d7409a%3Fsource%3Dtopic_page---------0------------------1&ct=ga&cd=CAIyGjUwNDYzZmZmOTBiY2RhNTM6Y29tOmVuOlVT&usg=AFQjCNHdAURGnK0sMRnSgOckblLTRgxUAQ',
 		'https://slashdot.org/story/18/07/19/2050244/microsofts-plan-to-try-to-win-back-consumers-with-modern-life-services',

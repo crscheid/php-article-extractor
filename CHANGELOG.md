@@ -1,5 +1,8 @@
 # ChangeLog
 
+## Version 2.5.2
+
+- Updated `parseURLViaReadability` function to include Accept header
 
 ## Version 2.5.1
 

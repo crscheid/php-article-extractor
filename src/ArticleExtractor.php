@@ -274,30 +274,36 @@ class ArticleExtractor {
    *
    * Parsing can be considered unavailable if 'text' is returned as null
 	 */
-  private function parseURLViaReadability($url) {
+	private function parseURLViaReadability($url) {
 
     $text = null;
     $title = null;
-		$method = "readability";
-		$html = null;
+ 		$method = "readability";
+ 		$html = null;
 
     try {
-			if($this->user_agent != null) {
-				$this->log_debug("Manually setting user agent for file_get_contents to " . $this->user_agent);
-				$context = stream_context_create(array('http' => array('user_agent' => $this->user_agent)));
-				$html = file_get_contents($url, false, $context);
-			}
-			else {
-				$html = file_get_contents($url);
-			}
-      return $this->parseHTMLViaReadability($html);
+ 			if($this->user_agent != null) {
+ 				$this->log_debug("Manually setting user agent for file_get_contents to " . $this->user_agent);
+ 				$context = stream_context_create(array('http' => array('header' => [
+ 						'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+ 						'User-Agent: ' . $this->user_agent
+ 					])));
+ 				$html = file_get_contents($url, false, $context);
+ 			}
+ 			else {
+ 				$context = stream_context_create(array('http' => array('header' => [
+ 						'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+ 					])));
+ 				$html = file_get_contents($url, false, $context);
+ 			}
+     return $this->parseHTMLViaReadability($html);
 
     }
     catch (\Exception $e) {
-      $this->log_debug('parseURLViaReadability: Error processing text', $e->getMessage());
+    	$this->log_debug('parseURLViaReadability: Error processing text', $e->getMessage());
     }
 
-    return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
+		return ['parse_method'=>$method, 'title'=>$title, 'text'=>$text, 'html'=>$html];
 
   }
 
