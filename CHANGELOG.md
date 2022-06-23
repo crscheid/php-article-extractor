@@ -1,5 +1,12 @@
 # ChangeLog
 
+## Version 2.5.3
+
+- Locks composer dependencies to specific versions
+  - PHP to ~7.2
+  - scotteh/php-goose to ^1.1
+
+
 ## Version 2.5.2
 
 - Updated `parseURLViaReadability` function to include Accept header

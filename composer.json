@@ -10,8 +10,8 @@
       }
     ],
     "require": {
-      "php": ">=7.2",
-	    "scotteh/php-goose": "dev-master",
+      "php": "~7.2",
+      "scotteh/php-goose": "^1.1",
       "thesoftwarefanatics/php-html-parser": "^1.8.0",
       "detectlanguage/detectlanguage": "2.*",
       "fivefilters/readability.php": "2.1.0"

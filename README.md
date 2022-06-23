@@ -155,7 +155,7 @@ Unit tests are included in this distribution and can be run utilizing PHPUnit af
 
 ### Installing Dependencies
 
-This will use the composer docker image to download the requirements. Note the use of the `--ignore-platform-reqs` since some of our dependencies do not yet support PHP 8.
+This will use the composer docker image to download the requirements. Note the use of the `--ignore-platform-reqs` since some of our dependencies do not yet support PHP 8. Ensure that whatever platform you are running composer on is on version 7.2 or higher of PHP.
 
 ```
 docker run --rm --interactive --tty --volume $PWD:/app composer --ignore-platform-reqs install
