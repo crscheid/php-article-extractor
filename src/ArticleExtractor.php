@@ -147,7 +147,7 @@ class ArticleExtractor {
 		// Check for redirects first
 		$url = $this->checkForRedirects($url);
 
-    $this->log_debug("Attempting to parse " . $url);
+    	$this->log_debug("Attempting to parse " . $url);
 
 		// If we don't have a force method enabled, then simply run them in the following order
 		if ($this->force_method == null) {
@@ -877,7 +877,7 @@ class ArticleExtractor {
 			return false;
 		}
 
-    try {
+    	try {
 			// Set the API key for detect language library
 			DetectLanguage::setApiKey($this->api_key);
 
